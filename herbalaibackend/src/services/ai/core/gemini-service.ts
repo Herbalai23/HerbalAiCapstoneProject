@@ -4,6 +4,7 @@ import { ENV } from "../../../config/env.js";
 import { DR_AI_SYSTEM_PROMPT } from "../../../config/drAiSystemPrompt.js";
 import { awaitAiOperation, createAiDeadline, iterateAiOperation } from "./request-lifetime.js";
 import type { AiRequestOptions } from "./request-lifetime.js";
+import { AiResponseError, assertChunkNotBlocked, assertResponseComplete } from './response-completion.js';
 
 const genAI = new GoogleGenerativeAI(ENV.GEMINI_API_KEY || "");
 
@@ -22,6 +23,7 @@ const getModelCandidates = (): string[] => {
 };
 
 const isRetryableModelError = (error: GeminiRequestError): boolean => {
+  if (error instanceof AiResponseError) return false;
   if (error.name === "AbortError") return true;
   if (error.status === undefined) return true;
   return ![400, 401, 403, 413, 422].includes(error.status);
@@ -200,8 +202,9 @@ export async function generateChatResponse(
         console.log(`📊 AI Token Usage [${modelName}] | Prompt: ${result.response.usageMetadata.promptTokenCount} | Response: ${result.response.usageMetadata.candidatesTokenCount} | Total: ${result.response.usageMetadata.totalTokenCount}`);
       }
 
+      assertChunkNotBlocked(result.response);
       const text = result.response.text();
-      if (!text) throw new Error("Empty response from model");
+      assertResponseComplete(result.response, text);
       recordModelSuccess(modelName, index + 1);
       return text;
     } catch (error) {
@@ -245,6 +248,7 @@ export async function* generateChatResponseStream(
         return stream;
       }, deadline.signal);
       for await (const chunk of iterateAiOperation(result.stream, deadline.signal)) {
+        assertChunkNotBlocked(chunk);
         const text = chunk.text();
         if (text) answer += text;
       }
@@ -253,7 +257,7 @@ export async function* generateChatResponseStream(
       if (response.usageMetadata) {
         console.log(`📊 AI Token Usage [${modelName}] | Prompt: ${response.usageMetadata.promptTokenCount} | Response: ${response.usageMetadata.candidatesTokenCount} | Total: ${response.usageMetadata.totalTokenCount}`);
       }
-      if (!answer) throw new Error("Empty response from model");
+      assertResponseComplete(response, answer);
       recordModelSuccess(modelName, index + 1);
       yield answer;
       return;

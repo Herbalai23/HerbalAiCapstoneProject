@@ -25,6 +25,7 @@ const profile = {
   joined: new Date('2026-01-01'),
   isBanned: false,
   emailVerified: new Date('2026-01-01'),
+  localPasswordSet: null,
 };
 
 describe('authenticated user cache', () => {

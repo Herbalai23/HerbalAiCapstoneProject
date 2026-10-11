@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 const fixture = vi.hoisted(() => ({
-  account: null as null | { id: string; email: string; username: string; name: string; password: string; role: 'contributor'; sessionVersion: number; emailVerified: Date; isBanned: boolean },
+  account: null as null | { id: string; email: string; username: string; name: string; password: string; localPasswordSet: boolean | null; role: 'contributor'; sessionVersion: number; emailVerified: Date; isBanned: boolean },
   tokens: [] as { id: string; userId: string; type: string; token: string; expiresAt: Date; revokedAt: Date | null }[],
   sendMail: vi.fn().mockResolvedValue({ messageId: 'TEST intercepted' }),
   claimed: false,
@@ -27,6 +27,7 @@ vi.mock('../src/repositories/user.repository.js', () => ({
   replacePassword: vi.fn(async (_id, hash, version, replacement) => {
     if (!fixture.account || fixture.account.password !== hash || fixture.account.sessionVersion !== version) return false;
     fixture.account.password = replacement;
+    fixture.account.localPasswordSet = true;
     fixture.account.sessionVersion++;
     for (const record of fixture.tokens) {
       if (['PASSWORD_RESET', 'REFRESH'].includes(record.type)) record.revokedAt = new Date();
@@ -61,6 +62,7 @@ vi.mock('../src/repositories/token.repository.js', () => ({
     if (!record || !fixture.account) return false;
     record.revokedAt = new Date();
     fixture.account.password = redemption.passwordHash;
+    fixture.account.localPasswordSet = true;
     fixture.account.sessionVersion++;
     for (const refresh of fixture.tokens.filter(candidate => candidate.type === 'REFRESH')) refresh.revokedAt = new Date();
     return true;
@@ -76,6 +78,7 @@ describe('Google-to-password lifecycle (memory persistence, intercepted provider
   it('keeps Google and email/password login on the same account, rejects old passwords and used links', async () => {
     const initial = await googleLogin('TEST-google-code');
     expect(initial.user.email).toBe('oauth-password@example.invalid');
+    expect(initial.user).toMatchObject({ hasLocalPassword: false, passwordStatus: 'unset' });
     expect(fixture.account?.emailVerified).toBeInstanceOf(Date);
     const initialHash = fixture.account!.password;
     const response = await requestPasswordSetup(initial.user.id);
@@ -102,9 +105,11 @@ describe('Google-to-password lifecycle (memory persistence, intercepted provider
     expect(fixture.tokens.filter(record => record.type === 'REFRESH').every(record => record.revokedAt !== null)).toBe(true);
     await expect(resetPassword(reset.token, chosen + '-reuse')).rejects.toMatchObject({ status: 400 });
     const emailSession = await login({ email: initial.user.email, password: chosen });
+    expect(emailSession.user).toMatchObject({ hasLocalPassword: true, passwordStatus: 'set' });
     expect(emailSession.user.id).toBe(initial.user.id);
     expect(verifyAccessToken(emailSession.accessToken)?.sessionVersion).toBe(1);
     const googleAgain = await googleLogin('TEST-google-again');
+    expect(googleAgain.user).toMatchObject({ hasLocalPassword: true, passwordStatus: 'set' });
     expect(googleAgain.user.id).toBe(initial.user.id);
     expect(verifyAccessToken(googleAgain.accessToken)?.sessionVersion).toBe(1);
     const replacement = chosen + '-changed';

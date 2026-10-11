@@ -6,6 +6,7 @@ vi.mock('../src/repositories/knowledgebase.repository.js', () => ({ searchSimila
 vi.mock('../src/services/ai/core/gemini-service.js', () => ({ generateEmbedding: mocks.embed, generateChatResponse: mocks.answer, generateChatResponseStream: mocks.stream }));
 
 import { AskAIService, createDrAiStream, withoutPediatricQuantities } from '../src/services/ai/chat/ask-ai-service.js';
+import { AiResponseError } from '../src/services/ai/core/response-completion.js';
 
 const herb = {
   id: 'lagundi', localName: 'Lagundi', scientificName: 'Vitex negundo', isVerified: true,
@@ -37,6 +38,18 @@ describe('RAG response context', () => {
     expect(context).toContain('[FAQ 1]');
     expect(context).toContain('PITAHC');
     expect(mocks.embed).not.toHaveBeenCalled();
+  });
+  it('propagates rejected model completion instead of billing a fallback as a completed generation', async () => {
+    mocks.answer.mockRejectedValueOnce(new AiResponseError());
+    await expect(AskAIService('How do I prepare Lagundi?')).rejects.toMatchObject({ code: 'AI_RESPONSE_INCOMPLETE' });
+  });
+
+  it('does not replace a provider safety stop or truncation with retrieved fallback content', async () => {
+    mocks.stream.mockImplementationOnce(async function* () { throw new AiResponseError(true); });
+    const result = await createDrAiStream('How do I prepare Lagundi?');
+    expect(result.sources.length).toBeGreaterThan(0);
+    await expect(result.chunks.next()).rejects.toMatchObject({ code: 'AI_RESPONSE_BLOCKED' });
+    expect(result.getResult().reply).toBe('');
   });
 
   it('does not read the catalog for an already canceled request', async () => {

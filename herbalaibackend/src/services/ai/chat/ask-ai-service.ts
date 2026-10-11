@@ -6,6 +6,7 @@ import type { HerbQueryResult } from "../../../repositories/herb.repository.js";
 import type { KBQueryResult } from "../../../repositories/knowledgebase.repository.js";
 import { awaitAiOperation, iterateAiOperation } from "../core/request-lifetime.js";
 import type { AiRequestOptions } from "../core/request-lifetime.js";
+import { AiResponseError } from '../core/response-completion.js';
 import { isPreparationQuestion, isPediatricQuestion, isPediatricRequest, isContextFollowUp, isLinkOrLibraryQuestion, userQuestionsNewestFirst } from './conversation-context.js';
 
 const STOP_WORDS = new Set([
@@ -601,8 +602,9 @@ export async function AskAIService(question: string, history: Content[] = [], op
       try {
         const generated = await awaitAiOperation(() => generateChatResponse(question, prepared.context, history, options), options.signal);
         if (generated.trim()) answer = generated;
-      } catch {
+      } catch (error) {
         options.signal?.throwIfAborted();
+        if (error instanceof AiResponseError) throw error;
         console.warn('Dr. Ai generation unavailable; using retrieved records.');
       }
     }
@@ -626,6 +628,7 @@ export async function AskAIService(question: string, history: Content[] = [], op
     };
   } catch (error) {
     options.signal?.throwIfAborted();
+    if (error instanceof AiResponseError) throw error;
     console.error("AskAIService Error:", error);
     return { code: 500, status: "error", message: "Dr. Ai assistant is currently unavailable." };
   }
@@ -654,9 +657,10 @@ export async function createDrAiStream(question: string, history: Content[] = []
         reply += text;
         yield text;
       }
-    } catch {
+    } catch (error) {
       options.signal?.throwIfAborted();
-      if (reply.trim()) throw new Error('Dr. Ai stream ended before completion.');
+      if (error instanceof AiResponseError) throw error;
+      if (reply.trim()) throw new Error('Dr. Ai stream ended before completion.', { cause: error });
       console.warn('Dr. Ai streaming unavailable; using retrieved records.');
     }
     if (!reply.trim()) {

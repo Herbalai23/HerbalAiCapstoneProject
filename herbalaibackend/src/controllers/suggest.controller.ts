@@ -9,7 +9,7 @@ import { createNotification } from '../repositories/notification.repository.js';
 import { sendMail } from '../lib/mailer.js';
 import { ENV } from '../config/env.js';
 import type { HerbEvidenceClass } from '@prisma/client';
-import { editSuggestionSchema, hasPublicationReferenceCoverage, suggestHerbSchema } from '../schema/suggest.schema.js';
+import { editSuggestionSchema, hasPublicationReferenceCoverage, suggestHerbSchema, suggestionListQuerySchema } from '../schema/suggest.schema.js';
 
 const parseSuggestionId = (value: unknown): number | null => {
   if (typeof value !== 'string' || !/^[1-9]\d*$/.test(value)) return null;
@@ -209,6 +209,21 @@ export class SuggestController {
           code: 401,
           message: 'Authentication required.',
         });
+        return;
+      }
+
+      if (req.query['view'] !== undefined) {
+        const parsed = suggestionListQuerySchema.safeParse(req.query);
+        if (!parsed.success) {
+          res.status(400).json({ status: 'error', message: 'Invalid submission view or pagination.', errors: parsed.error.issues.map(issue => ({ path: issue.path.join('.'), message: issue.message })) });
+          return;
+        }
+        if (parsed.data.scope === 'all' && userRole !== 'admin') {
+          res.status(403).json({ status: 'error', message: 'Administrator access is required for all submissions.' });
+          return;
+        }
+        const result = await suggestRepo.findSuggestionHistoryPage(parsed.data, { userId, role: userRole ?? '' });
+        res.status(200).json({ status: 'success', code: 200, data: result });
         return;
       }
 

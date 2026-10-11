@@ -22,7 +22,7 @@ vi.mock('../src/utils/jwt.js', () => ({ generateAccessToken: vi.fn().mockReturnV
 import { ENV } from '../src/config/env.js';
 import { login, resendEmailVerification, signup } from '../src/services/auth.service.js';
 
-const account = { email: 'example@loadtest.invalid', username: 'example_user', name: 'Test User', password: 'safe-password' };
+const account = { email: 'example@loadtest.invalid', username: 'example_user', name: 'Testa Usera', password: 'safe-password' };
 const originalVerificationRequirement = ENV.REQUIRE_EMAIL_VERIFICATION;
 
 beforeEach(() => {
@@ -51,18 +51,20 @@ describe('signup delivery outcomes', () => {
     sendMail.mockRejectedValueOnce(new Error('Connection unavailable'));
     const result = await signup(account);
     expect(result.verificationEmailSent).toBe(false);
+    expect(result.verificationEmailStatus).toBe('unavailable');
     expect(createUser).toHaveBeenCalledOnce();
     expect(createToken).toHaveBeenCalledOnce();
   });
 
   it('does not claim a suppressed email was sent', async () => {
     sendMail.mockResolvedValueOnce({ suppressed: true });
-    expect((await signup(account)).verificationEmailSent).toBe(false);
+    expect(await signup(account)).toMatchObject({ verificationEmailSent: false, verificationEmailStatus: 'suppressed' });
   });
 
   it('reports accepted delivery', async () => {
-    expect((await signup(account)).verificationEmailSent).toBe(true);
+    expect(await signup(account)).toMatchObject({ verificationEmailSent: true, verificationEmailStatus: 'provider_accepted' });
     expect(createUser).toHaveBeenCalledWith(expect.objectContaining({ emailVerificationRequired: true }));
+    expect(createUser).toHaveBeenCalledWith(expect.objectContaining({ localPasswordSet: true }));
   });
 
   it('keeps the existing-email conflict without creating another account', async () => {

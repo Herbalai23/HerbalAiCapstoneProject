@@ -24,9 +24,11 @@ async function signup() {
   emails.push(email);
   const response = await request(app).post('/api/auth/signup').send({
     username: `recovery_${randomUUID().replaceAll('-', '').slice(0, 18)}`,
-    email, password, name: 'TEST account recovery',
+    email, password, firstName: 'Testa', lastName: 'Recovery',
   });
   expect(response.status).toBe(201);
+  expect(response.body.data).toMatchObject({ verificationRequired: true, verificationEmailSent: true, verificationEmailStatus: 'provider_accepted' });
+  expect(response.body.data.user).not.toHaveProperty('password');
   return prisma.user.findUniqueOrThrow({ where: { email } });
 }
 const login = (email: string, value = password) => request(app).post('/api/auth/login').send({ email, password: value });
@@ -62,7 +64,7 @@ describe('Registration and account recovery (mail intercepted)', () => {
     sendMail.mockRejectedValueOnce(new Error('Mail transport unavailable'));
     const response = await request(app).post('/api/auth/signup').send({
       username: `recovery_${randomUUID().replaceAll('-', '').slice(0, 18)}`,
-      email, password, name: 'TEST delivery failure',
+      email, password, firstName: 'Testa', lastName: 'Delivery',
     });
     expect(response.status).toBe(202);
     expect(response.body.data.verificationEmailSent).toBe(false);

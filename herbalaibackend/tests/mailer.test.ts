@@ -38,6 +38,10 @@ beforeEach(() => {
   environment.GMAIL_CLIENT_SECRET = 'gmail-client-secret';
   environment.GMAIL_REFRESH_TOKEN = 'gmail-refresh-token';
   environment.GMAIL_SENDER_EMAIL = 'sender@gmail.com';
+  environment.EMAIL_ALLOWED_RECIPIENTS = [];
+  environment.SMTP_USER = '';
+  environment.SMTP_PASSWORD = '';
+  environment.SMTP_FROM = '';
   vi.stubGlobal('fetch', vi.fn());
 });
 
@@ -165,5 +169,57 @@ describe('email delivery', () => {
     environment.EMAIL_DELIVERY_MODE = 'log';
     await expect(sendMail(message)).resolves.toMatchObject({ suppressed: true });
     expect(fetch).not.toHaveBeenCalled();
+  });
+  it.each(['resend', 'gmail'])('rejects successful %s responses that lack a valid message ID', async provider => {
+    environment.EMAIL_PROVIDER = provider;
+    streamSend.mockResolvedValue({ message: Buffer.from('TEST MIME') });
+    if (provider === 'gmail') vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ access_token: 'TEST-token' })));
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ error: 'PRIVATE response', id: '' })));
+    await expect(sendMail(message)).rejects.toThrow('Email provider returned no message identifier.');
+  });
+
+  it('checks SMTP recipient acceptance instead of treating a resolved transport call as sent', async () => {
+    environment.EMAIL_PROVIDER = 'smtp';
+    environment.SMTP_USER = 'TEST-smtp'; environment.SMTP_PASSWORD = 'TEST-only'; environment.SMTP_FROM = 'sender@example.invalid';
+    smtpSend.mockResolvedValueOnce({ accepted: [], rejected: [message.to], messageId: 'TEST-id' });
+    await expect(sendMail(message)).rejects.toThrow('SMTP did not accept the recipient.');
+    smtpSend.mockResolvedValueOnce({ accepted: [message.to], messageId: 'TEST-id' });
+    await expect(sendMail(message)).resolves.toEqual({ messageId: 'TEST-id' });
+  });
+
+  it('normalizes recipients consistently across API delivery and allowlist filtering', async () => {
+    environment.EMAIL_DELIVERY_MODE = 'allowlist'; environment.EMAIL_ALLOWED_RECIPIENTS = [message.to];
+    vi.mocked(fetch).mockResolvedValue(new Response(JSON.stringify({ id: 'TEST-id' })));
+    await sendMail({ ...message, to: '  Recipient@Example.com  ' });
+    expect(JSON.parse(vi.mocked(fetch).mock.calls[0]![1]!.body as string).to).toEqual([message.to]);
+    await expect(sendMail({ ...message, to: 'not-allowed@example.invalid' })).resolves.toMatchObject({ suppressed: true });
+    expect(fetch).toHaveBeenCalledOnce();
+  });
+
+  it('logs provider acceptance explicitly without claiming receipt by the user', async () => {
+    const log = vi.spyOn(console, 'info').mockImplementation(() => {});
+    try {
+      vi.mocked(fetch).mockResolvedValue(new Response(JSON.stringify({ id: 'TEST-receipt' })));
+      await sendMail(message);
+      expect(log).toHaveBeenCalledWith(JSON.stringify({ event: 'email_provider_accepted', provider: 'resend', messageId: 'TEST-receipt', inboxDeliveryConfirmed: false }));
+      expect(JSON.stringify(log.mock.calls)).not.toContain(message.to);
+    } finally { log.mockRestore(); }
+  });
+
+  it('records actionable revoked Gmail authorization without logging secrets or HTML/tokens', async () => {
+    environment.EMAIL_PROVIDER = 'gmail';
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      vi.mocked(fetch).mockResolvedValue(new Response(JSON.stringify({ error: 'invalid_grant', error_description: 'PRIVATE credentials' }), { status: 400 }));
+      await expect(sendMail(message)).rejects.toThrow('invalid_grant');
+      expect(log).toHaveBeenCalledWith(JSON.stringify({ event: 'email_provider_failed', provider: 'gmail', category: 'authorization', authorizationReason: 'invalid_grant' }));
+      expect(JSON.stringify(log.mock.calls)).not.toContain('PRIVATE');
+      expect(JSON.stringify(log.mock.calls)).not.toContain(message.to);
+    } finally { log.mockRestore(); }
+  });
+
+  it('rejects an invalid delivery mode during readiness checks', () => {
+    environment.EMAIL_DELIVERY_MODE = 'misspelled';
+    expect(() => ensureMailReady(message.to)).toThrow('Unsupported email delivery mode.');
   });
 });

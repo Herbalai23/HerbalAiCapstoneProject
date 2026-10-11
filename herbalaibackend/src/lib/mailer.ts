@@ -21,6 +21,8 @@ interface SendMailOptions {
   html: string;
 }
 
+type MailReceipt = { id?: string; messageId?: string; suppressed?: boolean };
+
 const gmailAuthorizationErrors = new Set([
   "invalid_grant", "invalid_client", "invalid_request", "invalid_scope",
   "unauthorized_client", "unsupported_grant_type", "access_denied",
@@ -43,6 +45,7 @@ const readGmailAccessToken = async (response: Response): Promise<string> => {
 
 export const ensureMailReady = (recipient?: string) => {
   const deliveryMode = ENV.EMAIL_DELIVERY_MODE.toLowerCase();
+  if (!['live', 'allowlist', 'log'].includes(deliveryMode)) throw new Error('Unsupported email delivery mode.');
   if (deliveryMode === "log") return;
   if (deliveryMode === "allowlist" && recipient && !ENV.EMAIL_ALLOWED_RECIPIENTS.includes(recipient.trim().toLowerCase())) return;
   if (ENV.EMAIL_PROVIDER === "resend" && ENV.RESEND_API_KEY && ENV.RESEND_FROM_EMAIL) return;
@@ -51,7 +54,16 @@ export const ensureMailReady = (recipient?: string) => {
   throw new Error("Email delivery is not configured.");
 };
 
-export const sendMail = async ({ to, subject, html }: SendMailOptions) => {
+const readAcceptedMessage = async (response: Response): Promise<{ id: string }> => {
+  const payload: unknown = await response.json().catch(() => null);
+  if (!payload || typeof payload !== 'object' || !('id' in payload)
+    || typeof payload.id !== 'string' || !payload.id.trim()) {
+    throw new Error('Email provider returned no message identifier.');
+  }
+  return { id: payload.id };
+};
+
+const deliverMail = async ({ to, subject, html }: SendMailOptions): Promise<MailReceipt> => {
   const normalizedRecipient = to.trim().toLowerCase();
   const deliveryMode = ENV.EMAIL_DELIVERY_MODE.toLowerCase();
   const recipientIsAllowed = ENV.EMAIL_ALLOWED_RECIPIENTS.includes(normalizedRecipient);
@@ -91,7 +103,7 @@ export const sendMail = async ({ to, subject, html }: SendMailOptions) => {
     if (!response.ok) {
       throw new Error(`Email provider rejected the request (HTTP ${response.status}).`);
     }
-    return response.json();
+    return readAcceptedMessage(response);
   }
 
   if (ENV.EMAIL_PROVIDER === "gmail") {
@@ -131,7 +143,7 @@ export const sendMail = async ({ to, subject, html }: SendMailOptions) => {
     if (!response.ok) {
       throw new Error(`Gmail rejected the message (HTTP ${response.status}).`);
     }
-    return response.json();
+    return readAcceptedMessage(response);
   }
 
   const mailOptions = {
@@ -141,5 +153,36 @@ export const sendMail = async ({ to, subject, html }: SendMailOptions) => {
     html,
   };
 
-  return transporter.sendMail(mailOptions);
+  const receipt = await transporter.sendMail(mailOptions);
+  const accepted = receipt.accepted?.some(recipient => recipient.trim().toLowerCase() === normalizedRecipient);
+  if (!accepted || !receipt.messageId) throw new Error('SMTP did not accept the recipient.');
+  return { messageId: receipt.messageId };
+};
+
+export const sendMail = async (options: SendMailOptions) => {
+  const provider = ['gmail', 'resend', 'smtp'].includes(ENV.EMAIL_PROVIDER) ? ENV.EMAIL_PROVIDER : 'unknown';
+  try {
+    const receipt = await deliverMail({ ...options, to: options.to.trim().toLowerCase() });
+    if (!('suppressed' in receipt) || !receipt.suppressed) {
+      const messageId = 'id' in receipt ? receipt.id : receipt.messageId;
+      console.info(JSON.stringify({
+        event: 'email_provider_accepted', provider,
+        ...(typeof messageId === 'string' && /^[a-zA-Z0-9_-]{1,256}$/.test(messageId) ? { messageId } : {}),
+        inboxDeliveryConfirmed: false,
+      }));
+    }
+    return receipt;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '';
+    const authorizationReason = /Gmail authorization failed \(HTTP \d{3}; ([a-z_]+)\)/.exec(message)?.[1];
+    const smtpCode = error && typeof error === 'object' && 'code' in error ? error.code : undefined;
+    console.error(JSON.stringify({
+      event: 'email_provider_failed', provider,
+      category: authorizationReason || smtpCode === 'EAUTH' ? 'authorization'
+        : error instanceof Error && ['TimeoutError', 'AbortError'].includes(error.name) || smtpCode === 'ETIMEDOUT' ? 'timeout'
+          : message.includes('not configured') || message.includes('delivery mode') ? 'configuration' : 'provider_or_transport',
+      ...(authorizationReason && gmailAuthorizationErrors.has(authorizationReason) ? { authorizationReason } : {}),
+    }));
+    throw error;
+  }
 };

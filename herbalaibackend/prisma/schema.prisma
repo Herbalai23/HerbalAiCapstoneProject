@@ -19,6 +19,7 @@ model User {
   username      String    @unique
   email         String    @unique
   password      String
+  localPasswordSet Boolean? @map("local_password_set")
   name          String
   avatar        String?
   role          Role      @default(contributor)

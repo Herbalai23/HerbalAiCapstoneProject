@@ -9,11 +9,19 @@ import { beginChatCredit } from '../services/credit-chat.service.js';
 import { CreditError } from '../config/credits.js';
 import { completeCreditRequest, releaseCreditRequest } from '../repositories/credits.repository.js';
 import type { CreditHandle } from '../repositories/credits.repository.js';
+import { AiResponseError } from '../services/ai/core/response-completion.js';
+import type { AiCompletionError } from '../contracts/workflow-contracts.js';
 
 type CompletedChat = { reply: string; history: ChatTurn[]; sources: unknown; meta?: unknown };
-const refundChatCredit = async (credit: CreditHandle | null | undefined) => {
-  if (!credit || credit.replay) return;
-  try { await releaseCreditRequest(credit); } catch { console.error('Credit refund awaits reservation-expiry recovery.'); }
+const refundChatCredit = async (credit: CreditHandle | null | undefined): Promise<AiCompletionError['creditStatus']> => {
+  if (!credit || credit.replay) return 'not_reserved';
+  try {
+    await releaseCreditRequest(credit);
+    return 'released';
+  } catch {
+    console.error('Credit refund awaits reservation-expiry recovery.');
+    return 'recovery_pending';
+  }
 };
 
 const CHAT_UNAVAILABLE_MESSAGE = "Dr. Ai is temporarily unavailable. Please try again later.";
@@ -106,19 +114,21 @@ export const sendMessage = async (req: Request, res: Response) => {
         reply,
         history: updatedHistory,
         sources,
-        meta: metrics ? { timingMs: metrics } : undefined,
+        meta: { completion: 'complete', ...(metrics ? { timingMs: metrics } : {}) },
     };
     if (credit) await completeCreditRequest(credit, response);
     completed = true;
     return res.status(200).json({ status: 'success', data: response });
   } catch (error) {
-    if (!completed) { await refundChatCredit(credit); credit = null; }
+    const creditStatus = !completed ? await refundChatCredit(credit) : 'not_reserved';
+    if (!completed) credit = null;
     if (res.destroyed || req.aborted) return;
     const err = error as { message?: string; status?: number };
     console.error("Chat Controller Error:", err?.message || error);
     return res.status(error instanceof CreditError ? error.status : 503).json({
       status: "error",
-      message: error instanceof CreditError ? error.message : CHAT_UNAVAILABLE_MESSAGE,
+      message: error instanceof CreditError || error instanceof AiResponseError ? error.message : CHAT_UNAVAILABLE_MESSAGE,
+      ...(error instanceof AiResponseError ? { code: error.code, retryable: error.retryable, creditStatus } : {}),
     });
   } finally {
     if (!completed) await refundChatCredit(credit);
@@ -161,7 +171,7 @@ export const streamMessage = async (req: Request, res: Response) => {
       const replay = credit.replay as CompletedChat;
       writeSse(res, 'sources', { sources: replay.sources });
       writeSse(res, 'chunk', { text: replay.reply });
-      writeSse(res, 'done', { history: replay.history, sources: replay.sources });
+      writeSse(res, 'done', { history: replay.history, sources: replay.sources, completion: 'complete' });
       return res.end();
     }
     heartbeat = setInterval(() => {
@@ -182,22 +192,27 @@ export const streamMessage = async (req: Request, res: Response) => {
     const result = stream.getResult();
     const updatedHistory = appendToHistory(history as ChatTurn[], trimmedMessage, result.reply);
     if (!result.reply.trim()) throw new Error('An empty answer cannot consume credits.');
-    if (credit) await completeCreditRequest(credit, { reply: result.reply, history: updatedHistory, sources: result.sources, meta: result.metrics ? { timingMs: result.metrics } : undefined });
+    if (credit) await completeCreditRequest(credit, { reply: result.reply, history: updatedHistory, sources: result.sources, meta: { completion: 'complete', ...(result.metrics ? { timingMs: result.metrics } : {}) } });
     completed = true;
-    writeSse(res, "done", { history: updatedHistory, sources: result.sources, metrics: result.metrics });
+    writeSse(res, "done", { history: updatedHistory, sources: result.sources, metrics: result.metrics, completion: 'complete' });
     return res.end();
   } catch (error) {
-    if (!completed) { await refundChatCredit(credit); credit = null; }
+    const creditStatus = !completed ? await refundChatCredit(credit) : 'not_reserved';
+    if (!completed) credit = null;
     if (res.destroyed || req.aborted) return;
     const err = error as { message?: string; status?: number };
     console.error("Streaming Chat Controller Error:", err?.message || error);
     if (!res.headersSent) {
       return res.status(error instanceof CreditError ? error.status : 503).json({
         status: "error",
-        message: error instanceof CreditError ? error.message : CHAT_UNAVAILABLE_MESSAGE,
+        message: error instanceof CreditError || error instanceof AiResponseError ? error.message : CHAT_UNAVAILABLE_MESSAGE,
+        ...(error instanceof AiResponseError ? { code: error.code, retryable: error.retryable, creditStatus } : {}),
       });
     }
-    writeSse(res, "error", { message: CHAT_UNAVAILABLE_MESSAGE });
+    writeSse(res, "error", {
+      message: error instanceof AiResponseError ? error.message : CHAT_UNAVAILABLE_MESSAGE,
+      ...(error instanceof AiResponseError ? { code: error.code, retryable: error.retryable, creditStatus } : {}),
+    });
     return res.end();
   } finally {
     if (!completed) await refundChatCredit(credit);

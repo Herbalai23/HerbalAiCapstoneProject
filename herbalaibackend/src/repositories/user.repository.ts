@@ -23,6 +23,7 @@ type SessionUser = {
   banReason?: string | null;
   banExpiresAt?: Date | null;
   emailVerified: Date | null;
+  localPasswordSet?: boolean | null;
 };
 
 const toSessionUser = (user: SessionUser): SessionUser => ({
@@ -37,6 +38,7 @@ const toSessionUser = (user: SessionUser): SessionUser => ({
   ...(user.banReason !== undefined ? { banReason: user.banReason } : {}),
   ...(user.banExpiresAt !== undefined ? { banExpiresAt: user.banExpiresAt } : {}),
   emailVerified: user.emailVerified,
+  localPasswordSet: user.localPasswordSet ?? null,
 });
 
 export const primeCachedUser = (user: SessionUser): void => {
@@ -106,6 +108,7 @@ const fetchSessionUsers = async (ids: string[]) => {
       banReason: true,
       banExpiresAt: true,
       emailVerified: true,
+      localPasswordSet: true,
     },
   });
   return new Map(users.map(user => [user.id, user]));
@@ -119,15 +122,27 @@ export const findUserById = async (id: string) => {
 
 export const findPasswordCredentials = (id: string) => prisma.user.findUnique({
   where: { id },
-  select: { id: true, password: true, sessionVersion: true, isBanned: true, banExpiresAt: true, banReason: true },
+  select: { id: true, password: true, localPasswordSet: true, sessionVersion: true, isBanned: true, banExpiresAt: true, banReason: true },
 });
+
+export const confirmLocalPassword = async (id: string, passwordHash: string, sessionVersion: number): Promise<boolean> => {
+  const result = await prisma.user.updateMany({
+    where: { id, password: passwordHash, sessionVersion, localPasswordSet: null, ...eligibleAccountFilter() },
+    data: { localPasswordSet: true },
+  });
+  if (result.count === 1) invalidateCachedUser(id);
+  if (result.count === 1) return true;
+  const current = await findPasswordCredentials(id);
+  return current?.localPasswordSet === true && current.password === passwordHash
+    && current.sessionVersion === sessionVersion && !isAccountBanned(current);
+};
 
 export const replacePassword = (
   id: string, expectedHash: string, expectedVersion: number, passwordHash: string,
 ): Promise<boolean> => prisma.$transaction(async transaction => {
   const changed = await transaction.user.updateMany({
     where: { id, password: expectedHash, sessionVersion: expectedVersion, ...eligibleAccountFilter() },
-    data: { password: passwordHash, sessionVersion: { increment: 1 } },
+    data: { password: passwordHash, localPasswordSet: true, sessionVersion: { increment: 1 } },
   });
   if (changed.count !== 1) return false;
   await transaction.token.updateMany({
@@ -150,6 +165,7 @@ export const createUser = async (data: Prisma.UserCreateInput) => {
       joined: true,
       isBanned: true,
       emailVerified: true,
+      localPasswordSet: true,
     },
   });
 };
@@ -258,6 +274,7 @@ export const updateUserProfile = async (
       joined: true,
       isBanned: true,
       emailVerified: true,
+      localPasswordSet: true,
     },
   });
   invalidateCachedUser(id);

@@ -22,6 +22,46 @@ afterEach(() => {
 });
 
 describe('Gemini transport fallback (no live provider calls)', () => {
+  it('rejects a blocked prompt without falling back or exposing provider details', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ promptFeedback: { blockReason: 'SAFETY' } })));
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(generateChatResponse('Question', 'Context')).rejects.toMatchObject({ code: 'AI_RESPONSE_BLOCKED', retryable: false });
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it.each(['MAX_TOKENS', 'SAFETY', 'RECITATION', 'OTHER', undefined])('rejects nonempty %s responses without automatic model retries', async finishReason => {
+    const payload = content('Partial preparation');
+    Object.assign(payload.candidates[0]!, { finishReason });
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify(payload)));
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(generateChatResponse('Question', 'Context')).rejects.toMatchObject({
+      code: ['SAFETY', 'RECITATION'].includes(finishReason ?? '') ? 'AI_RESPONSE_BLOCKED' : 'AI_RESPONSE_INCOMPLETE',
+    });
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it.each(['MAX_TOKENS', 'SAFETY', 'OTHER', undefined])('never emits buffered text from a stream ending with %s', async finishReason => {
+    const partial = content('Partial ingredients');
+    Object.assign(partial.candidates[0]!, { finishReason: undefined });
+    const terminal = content(' and steps');
+    Object.assign(terminal.candidates[0]!, { finishReason });
+    const fetchMock = vi.fn().mockResolvedValue(new Response(
+      `data: ${JSON.stringify(partial)}\n\ndata: ${JSON.stringify(terminal)}\n\n`,
+      { headers: { 'Content-Type': 'text/event-stream' } },
+    ));
+    vi.stubGlobal('fetch', fetchMock);
+    const iterator = generateChatResponseStream('Question', 'Context');
+    await expect(iterator.next()).rejects.toMatchObject({
+      code: finishReason === 'SAFETY' ? 'AI_RESPONSE_BLOCKED' : 'AI_RESPONSE_INCOMPLETE',
+    });
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it.each(['', '   ', 'Ingredients\n###'])('rejects empty or visibly unfinished STOP output: %s', async text => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json(text)));
+    await expect(generateChatResponse('Question', 'Context')).rejects.toMatchObject({ code: 'AI_RESPONSE_INCOMPLETE' });
+  });
+
   it('sends the beginner preparation restrictions to non-streaming generation', async () => {
     const fetchMock = vi.fn().mockResolvedValue(json('Mocked response'));
     vi.stubGlobal('fetch', fetchMock);

@@ -8,6 +8,9 @@ import { ENV } from "../config/env.js";
 import crypto from "crypto";
 import { ensureMailReady, sendMail } from "../lib/mailer.js";
 import { notifySessionInvalidated } from "../lib/session-invalidation.js";
+import { passwordCapability } from '../lib/password-capability.js';
+import { signupSchema } from '../schema/auth.schema.js';
+import type { SignupRequest } from '../schema/auth.schema.js';
 
 // ---- Security helper: prevent HTML injection in email templates ----
 const escapeHtml = (str: string): string =>
@@ -25,15 +28,8 @@ const googleClient = new OAuth2Client(
   ENV.GOOGLE_REDIRECT_URI
 );
 
-interface SignupData {
-  username: string;
-  email: string;
-  password: string;
-  name: string;
-  avatar?: string;
-}
-
-export const signup = async (data: SignupData) => {
+export const signup = async (request: SignupRequest) => {
+  const data = signupSchema.parse({ body: request }).body;
   const email = data.email.trim().toLowerCase();
   const username = data.username.trim().toLowerCase();
   const existingEmail = await userRepo.findUserByEmail(email);
@@ -56,7 +52,7 @@ export const signup = async (data: SignupData) => {
     try {
       ensureMailReady(email);
     } catch {
-      throw { status: 503, message: "Email delivery is temporarily unavailable." };
+      throw { status: 503, code: 'EMAIL_DELIVERY_UNAVAILABLE', message: "Email delivery is temporarily unavailable." };
     }
   }
 
@@ -66,6 +62,7 @@ export const signup = async (data: SignupData) => {
     username,
     email,
     password: hashedPassword,
+    localPasswordSet: true,
     name: data.name,
     avatar: data.avatar || null,
     emailVerificationRequired: ENV.REQUIRE_EMAIL_VERIFICATION,
@@ -80,6 +77,7 @@ export const signup = async (data: SignupData) => {
       role: user.role,
       verificationRequired: false,
       verificationEmailSent: false,
+      verificationEmailStatus: 'not_required' as const,
       message: "Account created. You can sign in now.",
     };
   }
@@ -97,6 +95,7 @@ export const signup = async (data: SignupData) => {
   const verificationUrl = `${ENV.FRONTEND_URL}/verify-email?token=${verificationToken}`;
 
   let verificationEmailSent: boolean;
+  let verificationEmailStatus: 'provider_accepted' | 'suppressed' | 'unavailable';
   try {
     const delivery = await sendMail({
       to: user.email,
@@ -116,9 +115,11 @@ export const signup = async (data: SignupData) => {
       `,
     });
     verificationEmailSent = delivery?.suppressed !== true;
-  } catch (err) {
-    console.error("Failed to send verification email:", err);
+    verificationEmailStatus = verificationEmailSent ? 'provider_accepted' : 'suppressed';
+  } catch {
+    console.error("Failed to send verification email.");
     verificationEmailSent = false;
+    verificationEmailStatus = 'unavailable';
   }
 
   return {
@@ -129,8 +130,9 @@ export const signup = async (data: SignupData) => {
     role: user.role,
     verificationRequired: true,
     verificationEmailSent,
+    verificationEmailStatus,
     message: verificationEmailSent
-      ? "Account created. Please check your email to verify it."
+      ? "Account created. Your verification message was accepted by the email provider. Check your inbox and Spam folder; delivery may take a few minutes."
       : "Account created, but the verification email could not be sent. Request a new verification link.",
   };
 };
@@ -138,6 +140,10 @@ export const signup = async (data: SignupData) => {
 export const login = async (data: { identifier?: string; email?: string; password: string }) => {
   const user = await userRepo.findUserByLoginIdentifier(data.identifier ?? data.email ?? '');
   if (!user) {
+    throw { status: 401, message: "Invalid email/username or password." };
+  }
+
+  if (user.localPasswordSet === false) {
     throw { status: 401, message: "Invalid email/username or password." };
   }
 
@@ -150,6 +156,12 @@ export const login = async (data: { identifier?: string; email?: string; passwor
 
   if (ENV.REQUIRE_EMAIL_VERIFICATION && user.emailVerificationRequired && !user.emailVerified) {
     throw { status: 403, message: "Please verify your email before logging in." };
+  }
+
+  if (user.localPasswordSet === null) {
+    const confirmed = await userRepo.confirmLocalPassword(user.id, user.password, user.sessionVersion);
+    if (!confirmed) throw { status: 409, message: 'Your account changed. Please sign in again.' };
+    user.localPasswordSet = true;
   }
 
   // The login query already returned the current account state. Reuse only its
@@ -182,6 +194,7 @@ export const login = async (data: { identifier?: string; email?: string; passwor
       role: user.role,
       avatar: user.avatar,
       joined: user.joined,
+      ...passwordCapability(user),
     },
     accessToken,
     refreshToken,
@@ -282,6 +295,7 @@ export const googleLogin = async (code: string) => {
       username,
       email,
       password: hashedPassword,
+      localPasswordSet: false,
       name: name ?? emailLocalPart,
       avatar: picture ?? null,
       emailVerified: new Date(),
@@ -324,6 +338,7 @@ export const googleLogin = async (code: string) => {
       role: user.role,
       avatar: user.avatar,
       joined: user.joined,
+      ...passwordCapability(user),
     },
     accessToken,
     refreshToken,
@@ -347,14 +362,18 @@ export const verifyEmail = async (token: string) => {
 
 export const resendEmailVerification = async (email: string) => {
   if (!ENV.REQUIRE_EMAIL_VERIFICATION) {
-    return { message: "Email verification is temporarily disabled. If you already have an account, sign in." };
+    return { deliveryStatus: 'not_required' as const, message: "Email verification is temporarily disabled. If you already have an account, sign in." };
+  }
+
+  try { ensureMailReady(email); } catch {
+    throw { status: 503, code: 'VERIFICATION_EMAIL_UNAVAILABLE' };
   }
 
   const user = await userRepo.findUserByEmail(email);
 
   // Security: always return neutral response to prevent email enumeration
   if (!user || user.emailVerified) {
-    return { message: "If this email is registered and unverified, a new link has been sent." };
+    return { deliveryStatus: 'requested' as const, message: 'If this email is registered and unverified, we will attempt to send a verification link. Check your inbox and Spam folder; delivery may take a few minutes.' };
   }
 
   const verificationToken = crypto.randomBytes(32).toString("hex");
@@ -402,7 +421,7 @@ export const resendEmailVerification = async (email: string) => {
   } catch {
     console.error("Failed to retire previous verification links");
   }
-  return { message: "If this email is registered and unverified, a new link has been sent." };
+  return { deliveryStatus: 'requested' as const, message: 'If this email is registered and unverified, we will attempt to send a verification link. Check your inbox and Spam folder; delivery may take a few minutes.' };
 };
 
 const requestPasswordResetLink = async (email: string): Promise<"missing" | "cooldown" | "failed" | "sent"> => {
@@ -410,6 +429,11 @@ const requestPasswordResetLink = async (email: string): Promise<"missing" | "coo
 
   if (!user || isAccountBanned(user)) {
     return "missing";
+  }
+
+  try { ensureMailReady(user.email); } catch {
+    console.error('Password email delivery is not configured.');
+    return 'failed';
   }
 
   const requestedAt = new Date();
@@ -455,14 +479,14 @@ const requestPasswordResetLink = async (email: string): Promise<"missing" | "coo
       `,
     });
     if (delivery?.suppressed) throw new Error("Password reset email was suppressed.");
-  } catch (err) {
-    console.error("Failed to send password reset email:", err);
+  } catch {
+    console.error("Failed to send password reset email.");
     const cleanup = await Promise.allSettled([
       tokenRepo.revokeToken(resetTokenRecord.id),
       userRepo.releasePasswordResetRequest(user.id, requestedAt),
     ]);
     for (const result of cleanup) {
-      if (result.status === "rejected") console.error("Failed to clean up password reset request:", result.reason);
+      if (result.status === "rejected") console.error("Failed to clean up password reset request.");
     }
     return "failed";
   }
@@ -479,7 +503,8 @@ const requestPasswordResetLink = async (email: string): Promise<"missing" | "coo
 export const forgotPassword = async (email: string) => {
   await requestPasswordResetLink(email);
   return {
-    message: "If an account with that email exists, a password reset link has been sent. Check your email and Spam folder; if you requested one recently, wait an hour before trying again.",
+    deliveryStatus: 'requested' as const,
+    message: 'If this account is eligible, we will attempt to send a password reset link. Check your email and Spam folder; delivery may take a few minutes. If you requested one recently, wait an hour before trying again.',
   };
 };
 
@@ -491,6 +516,9 @@ export const changePassword = async (
     throw { status: 401, message: "Your session has expired. Please sign in again." };
   }
   if (isAccountBanned(user)) throw { status: 403, message: banMessage(user) };
+  if (user.localPasswordSet === false) {
+    throw { status: 400, code: 'PASSWORD_SETUP_REQUIRED', message: 'Create your Herbal-Ai password using the email password link first. Your Google password is unchanged.' };
+  }
   if (!await comparePassword(currentPassword, user.password)) {
     throw { status: 400, message: "Current password is incorrect." };
   }
@@ -516,9 +544,9 @@ export const requestPasswordSetup = async (userId: string) => {
     throw { status: 429, message: "You can request one password link per hour. Check your email and Spam folder for the existing link, or wait before requesting another." };
   }
   if (outcome === "failed") {
-    throw { status: 503, message: "We could not send your password link. Please try again later." };
+    throw { status: 503, code: 'PASSWORD_EMAIL_UNAVAILABLE', message: "We could not send your password link. Please try again later." };
   }
-  return { message: "Your password link was sent. Check your email and Spam folder. The link expires in one hour and works only once." };
+  return { deliveryStatus: 'provider_accepted' as const, message: 'Your password message was accepted by the email provider. Check your inbox and Spam folder; delivery may take a few minutes. The link expires in one hour and works only once.' };
 };
 
 export const resetPassword = async (token: string, newPassword: string) => {

@@ -1,4 +1,18 @@
 import { z } from 'zod';
+import { SUBMISSION_SCOPES, SUBMISSION_VIEWS } from '../contracts/workflow-contracts.js';
+
+const paginationInteger = (maximum: number) => z.union([
+  z.string().regex(/^[1-9]\d*$/), z.number(),
+]).transform(value => Number(value)).pipe(z.number().int().min(1).max(maximum));
+
+export const suggestionListQuerySchema = z.object({
+  view: z.enum(SUBMISSION_VIEWS),
+  scope: z.enum(SUBMISSION_SCOPES).default('mine'),
+  page: paginationInteger(10_000).default(1),
+  limit: paginationInteger(50).default(25),
+}).strict();
+
+export type SuggestionListQuery = z.infer<typeof suggestionListQuerySchema>;
 
 export const suggestHerbSchema = z.object({
   body: z.object({

@@ -7,6 +7,7 @@ vi.mock('../src/repositories/credits.repository.js', () => ({ reserveCreditReque
 vi.mock('../src/services/chat.service.js', () => ({ askDrAi: mocks.ask, streamDrAi: mocks.stream }));
 import { sendMessage, streamMessage } from '../src/controllers/chat.controller.js';
 import { CreditError } from '../src/config/credits.js';
+import { AiResponseError } from '../src/services/ai/core/response-completion.js';
 
 const app = express(); app.use(express.json());
 app.use((req, _res, next) => { Object.assign(req, { user: { userId: 'TEST-credits-user', role: 'contributor' } }); next(); });
@@ -40,6 +41,36 @@ describe('credit settlement around streaming and nonstreaming chat', () => {
   it('refunds a failed nonstreaming request exactly once', async () => {
     mocks.ask.mockRejectedValue(new Error('TEST provider failed'));
     expect((await send()).status).toBe(503); expect(mocks.release).toHaveBeenCalledOnce(); expect(mocks.complete).not.toHaveBeenCalled();
+  });
+  it.each([false, true])('refunds rejected model completion and exposes a safe error (blocked=%s)', async blocked => {
+    const error = new AiResponseError(blocked);
+    mocks.ask.mockRejectedValue(error);
+    const response = await send();
+    expect(response.status).toBe(503);
+    expect(response.body).toMatchObject({ code: error.code, retryable: !blocked, creditStatus: 'released' });
+    expect(response.body.data).toBeUndefined();
+    expect(mocks.release).toHaveBeenCalledOnce();
+    expect(mocks.complete).not.toHaveBeenCalled();
+  });
+  it('refunds provider truncation without sending partial text, history or done', async () => {
+    mocks.stream.mockResolvedValue({ sources: [{ title: 'Tawa-tawa' }], chunks: (async function* () {
+      throw new AiResponseError();
+    })(), getResult: vi.fn() });
+    const response = await send('/stream');
+    expect(response.text).toContain('AI_RESPONSE_INCOMPLETE');
+    expect(response.text).toContain('event: sources');
+    expect(response.text).not.toContain('event: chunk');
+    expect(response.text).not.toContain('event: done');
+    expect(mocks.release).toHaveBeenCalledOnce();
+    expect(mocks.complete).not.toHaveBeenCalled();
+  });
+  it('reports pending credit recovery truthfully if the refund transaction is unavailable', async () => {
+    mocks.ask.mockRejectedValue(new AiResponseError());
+    mocks.release.mockRejectedValueOnce(new Error('TEST database unavailable'));
+    const response = await send();
+    expect(response.body).toMatchObject({ code: 'AI_RESPONSE_INCOMPLETE', creditStatus: 'recovery_pending' });
+    expect(mocks.release).toHaveBeenCalledOnce();
+    expect(mocks.complete).not.toHaveBeenCalled();
   });
   it('refunds an incomplete stream and does not emit a completion event', async () => {
     mocks.stream.mockResolvedValue({ sources: [], chunks: (async function* () { yield 'partial'; throw new Error('TEST stream failed'); })(), getResult: () => ({ reply: 'partial', sources: [] }) });

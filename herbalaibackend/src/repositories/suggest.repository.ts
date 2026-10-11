@@ -1,5 +1,7 @@
 import { prisma } from "../lib/prisma.js";
-import type { HerbEvidenceClass, Prisma } from "@prisma/client";
+import { Prisma, type HerbEvidenceClass } from "@prisma/client";
+import type { SuggestionListQuery } from '../schema/suggest.schema.js';
+import type { SubmissionHistoryPage } from '../contracts/workflow-contracts.js';
 import crypto from "crypto";
 import { hasPublicationReferenceCoverage, reviewReferencesSchema, type SuggestionEdit } from '../schema/suggest.schema.js';
 
@@ -230,6 +232,47 @@ export const findSuggestionsBySubmitter = async (submitterId: string) => {
     where: { submitterId },
     orderBy: { submittedAt: "desc" },
   });
+};
+
+export const SUGGESTION_HISTORY_DELAY_MS = 24 * 60 * 60 * 1000;
+
+export const findSuggestionHistoryPage = async (
+  query: SuggestionListQuery, actor: { userId: string; role: string }, now = new Date(),
+) => {
+  if (!actor.userId) throw { status: 401, message: 'Authentication required.' };
+  if (query.scope === 'all' && actor.role !== 'admin') throw { status: 403, message: 'Administrator access is required for all submissions.' };
+  const cutoff = new Date(now.getTime() - SUGGESTION_HISTORY_DELAY_MS);
+  const historyFilter: Prisma.SuggestedHerbWhereInput = {
+    status: { in: ['Approved', 'Rejected'] }, reviewedAt: { lte: cutoff },
+  };
+  const activeFilter: Prisma.SuggestedHerbWhereInput = { OR: [
+    { status: { notIn: ['Approved', 'Rejected'] } },
+    { reviewedAt: null },
+    { reviewedAt: { gt: cutoff } },
+  ] };
+  const scope: Prisma.SuggestedHerbWhereInput = query.scope === 'mine' ? { submitterId: actor.userId } : {};
+  const where = { AND: [scope, query.view === 'history' ? historyFilter : query.view === 'active' ? activeFilter : {}] };
+  return prisma.$transaction(async transaction => {
+    const [suggestions, total, active, history, all] = await Promise.all([
+      transaction.suggestedHerb.findMany({
+        where, orderBy: [{ submittedAt: 'desc' }, { id: 'desc' }],
+        take: query.limit, skip: (query.page - 1) * query.limit,
+      }),
+      transaction.suggestedHerb.count({ where }),
+      transaction.suggestedHerb.count({ where: { AND: [scope, activeFilter] } }),
+      transaction.suggestedHerb.count({ where: { AND: [scope, historyFilter] } }),
+      transaction.suggestedHerb.count({ where: scope }),
+    ]);
+    return {
+      suggestions: suggestions.map(suggestion => ({
+        ...suggestion,
+        historyEligibleAt: ['Approved', 'Rejected'].includes(suggestion.status) && suggestion.reviewedAt
+          ? new Date(suggestion.reviewedAt.getTime() + SUGGESTION_HISTORY_DELAY_MS).toISOString() : null,
+      })),
+      total, page: query.page, limit: query.limit, view: query.view, scope: query.scope,
+      counts: { active, history, all }, asOf: now.toISOString(),
+    } satisfies SubmissionHistoryPage<typeof suggestions[number]>;
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead, timeout: 15_000 });
 };
 
 export const resubmitSuggestion = async (id: number, submitterId: string, data: Omit<SuggestedHerbData, 'submitterId'>) => {

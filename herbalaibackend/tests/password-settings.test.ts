@@ -79,6 +79,14 @@ describe('Password settings service with real bcrypt', () => {
     expect(mocks.replacePassword).not.toHaveBeenCalled();
     expect(mocks.notifySessionInvalidated).not.toHaveBeenCalled();
   });
+  it('directs a known Google-only account to verified email setup without comparing its random hash', async () => {
+    mocks.findPasswordCredentials.mockResolvedValueOnce({ ...user, localPasswordSet: false });
+    await expect(changePassword(user.id, 4, oldPassword, newPassword)).rejects.toMatchObject({
+      status: 400, code: 'PASSWORD_SETUP_REQUIRED',
+    });
+    expect(mocks.replacePassword).not.toHaveBeenCalled();
+    expect(mocks.sendMail).not.toHaveBeenCalled();
+  });
 
   it('rejects the same password using the stored hash, not a client assertion', async () => {
     await expect(changePassword(user.id, 4, oldPassword, oldPassword)).rejects.toMatchObject({ status: 400, message: expect.stringContaining('different') });

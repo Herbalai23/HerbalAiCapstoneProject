@@ -30,6 +30,26 @@ export function errorResponse(err: Error & { status?: number; code?: unknown; ty
       },
     };
   }
+  if (err.code === 'PASSWORD_SETUP_REQUIRED') {
+    return {
+      status: 400,
+      body: {
+        status: 'error', code: 'PASSWORD_SETUP_REQUIRED',
+        message: 'Create your Herbal-Ai password using the email password link first. Your Google password is unchanged.',
+      },
+    };
+  }
+  if (err.code === 'EMAIL_DELIVERY_UNAVAILABLE' || err.code === 'PASSWORD_EMAIL_UNAVAILABLE') {
+    return {
+      status: 503,
+      body: {
+        status: 'error', code: err.code,
+        message: err.code === 'PASSWORD_EMAIL_UNAVAILABLE'
+          ? 'We could not send your password link. Please try again later.'
+          : 'Email delivery is temporarily unavailable. Please try again later.',
+      },
+    };
+  }
   if (err.code === 'MEDIA_UPLOAD_UNAVAILABLE') {
     return {
       status: 503,

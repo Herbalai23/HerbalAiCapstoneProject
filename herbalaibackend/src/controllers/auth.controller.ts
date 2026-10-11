@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
 import * as authService from "../services/auth.service.js";
+import { passwordCapability } from '../lib/password-capability.js';
 import * as userRepo from "../repositories/user.repository.js";
 import { ENV } from "../config/env.js";
 import type { AuthenticatedRequest } from "../middlewares/auth.middleware.js";
@@ -46,6 +47,7 @@ export class AuthController {
         data: {
           verificationRequired: result.verificationRequired,
           verificationEmailSent: result.verificationEmailSent,
+          verificationEmailStatus: result.verificationEmailStatus,
           user: {
             id: result.id,
             username: result.username,
@@ -183,7 +185,7 @@ export class AuthController {
         status: "success",
         code: 200,
         data: {
-          user,
+          user: { ...user, ...passwordCapability(user) },
         }
       });
     } catch (error) {
@@ -220,7 +222,7 @@ export class AuthController {
         status: "success",
         code: 200,
         message: "Profile updated successfully",
-        data: { user },
+        data: { user: { ...user, ...passwordCapability(user) } },
       });
     } catch (error) {
       next(error);
@@ -252,7 +254,7 @@ export class AuthController {
         return;
       }
       const result = await authService.requestPasswordSetup(user.userId);
-      res.status(200).json({ status: "success", message: result.message });
+      res.status(200).json({ status: "success", message: result.message, data: { deliveryStatus: result.deliveryStatus } });
     } catch (error) { next(error); }
   };
 
@@ -486,6 +488,7 @@ export class AuthController {
         status: "success",
         code: 200,
         message: result.message,
+        data: { deliveryStatus: result.deliveryStatus },
       });
     } catch (error) {
       next(error);
@@ -505,6 +508,7 @@ export class AuthController {
         status: "success",
         code: 200,
         message: result.message,
+        data: { deliveryStatus: result.deliveryStatus },
       });
     } catch (error) {
       next(error);
