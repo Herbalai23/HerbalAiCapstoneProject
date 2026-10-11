@@ -18,6 +18,8 @@ export const passwordSetupSchema = z.object({ body: z.object({}).strict() });
 export const registrationNameSchema = z.string().trim().transform(value => value.normalize('NFC'))
   .pipe(z.string().max(50, 'Each name must be at most 50 characters')
     .regex(/^(?:\p{L}\p{M}*)+$/u, 'Names must contain letters only; numbers and punctuation are not allowed')
+    .refine(value => Array.from(value).filter(character => /\p{L}/u.test(character)).length <= 10,
+      'Each name must contain at most 10 letters')
     .refine(value => Array.from(value).filter(character => /\p{L}/u.test(character)).length >= 5,
       'Each name must contain at least 5 letters'));
 
@@ -46,7 +48,7 @@ export const signupSchema = z.object({
     }
     const parts = body.name?.split(' ');
     if (!parts || parts.length !== 2 || !parts.every(part => registrationNameSchema.safeParse(part).success)) {
-      context.addIssue({ code: 'custom', path: ['name'], message: 'Provide first and last names containing at least 5 letters each, without numbers or punctuation' });
+      context.addIssue({ code: 'custom', path: ['name'], message: 'Provide first and last names containing 5–10 letters each, without numbers or punctuation' });
     }
   }).transform(body => ({
     ...body,

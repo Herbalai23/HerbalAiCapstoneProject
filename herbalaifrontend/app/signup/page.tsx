@@ -1,6 +1,6 @@
 'use client';
 
-import { registrationNameError } from '../../lib/registration-name';
+import { registrationNameError, registrationNameInput } from '../../lib/registration-name';
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -166,11 +166,11 @@ export default function SignUpPage() {
                   minLength={5}
                   maxLength={50}
                   pattern="(?:\p{L}\p{M}*)+"
-                  title="At least 5 letters; no numbers or punctuation"
+                  title="5–10 letters; no numbers or punctuation"
                   autoComplete="given-name"
                   placeholder="Maria"
                   value={firstName}
-                  onChange={(e) => { if (/^[\p{L}\p{M}]*$/u.test(e.target.value)) setFirstName(e.target.value); }}
+                  onChange={(event) => { const name = registrationNameInput(event.target.value); if (name !== null) setFirstName(name); }}
                   className="w-full border border-black/10 dark:border-line bg-white/70 dark:bg-soft rounded-2xl px-4 py-2.5 text-sm text-[#1b4332] dark:text-ink focus:outline-none focus:ring-2 focus:ring-[#40916c]"
                 />
               </div>
@@ -185,11 +185,11 @@ export default function SignUpPage() {
                   minLength={5}
                   maxLength={50}
                   pattern="(?:\p{L}\p{M}*)+"
-                  title="At least 5 letters; no numbers or punctuation"
+                  title="5–10 letters; no numbers or punctuation"
                   autoComplete="family-name"
                   placeholder="Santos"
                   value={lastName}
-                  onChange={(e) => { if (/^[\p{L}\p{M}]*$/u.test(e.target.value)) setLastName(e.target.value); }}
+                  onChange={(event) => { const name = registrationNameInput(event.target.value); if (name !== null) setLastName(name); }}
                   className="w-full border border-black/10 dark:border-line bg-white/70 dark:bg-soft rounded-2xl px-4 py-2.5 text-sm text-[#1b4332] dark:text-ink focus:outline-none focus:ring-2 focus:ring-[#40916c]"
                 />
               </div>

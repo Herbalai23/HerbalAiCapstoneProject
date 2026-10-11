@@ -9,6 +9,7 @@ const compile = source => ts.transpileModule(source, {
 }).outputText;
 const adminSource = await read('app/admin/page.tsx');
 const suggestionSource = await read('app/suggest/page.tsx');
+const signupSource = await read('app/signup/page.tsx');
 const sourcePolicy = {};
 new Function('exports', compile(await read('lib/knowledge-source.ts')))(sourcePolicy);
 const names = {};
@@ -125,6 +126,48 @@ test('registration validation counts Unicode letters rather than combining marks
   for (const valid of ['Maria', 'Santos', 'Émilie', 'Mari\u0301a', 'Μαρία']) assert.equal(names.registrationNameError(valid, 'First name'), null);
   for (const invalid of ['Ana', 'Jose\u0301', '12345', 'Maria5', 'Maria Jane', 'Maria-Jane', 'a'.repeat(51)]) {
     assert.ok(names.registrationNameError(invalid, 'First name'));
+  }
+});
+
+test('registration names enforce the 5–10-letter range for both fields', () => {
+  for (const label of ['First name', 'Last name']) {
+    for (const length of [5, 10]) assert.equal(names.registrationNameError('a'.repeat(length), label), null);
+    for (const length of [4, 11, 50]) assert.ok(names.registrationNameError('a'.repeat(length), label));
+    assert.equal(names.registrationNameError('a'.repeat(11), label), `${label} must contain at most 10 letters.`);
+    assert.equal(names.registrationNameError('𐐀'.repeat(10), label), null);
+    assert.equal(names.registrationNameError('q\u0301'.repeat(10), label), null);
+    assert.ok(names.registrationNameError('𐐀'.repeat(11), label));
+  }
+});
+
+test('signup inputs advertise and enforce the new maximum without changing layout', () => {
+  const parsed = ts.createSourceFile('signup.tsx', signupSource, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const fields = [];
+  const visit = node => {
+    if (ts.isJsxSelfClosingElement(node) && node.tagName.getText(parsed) === 'input') {
+      const attributes = Object.fromEntries(node.attributes.properties
+        .filter(attribute => ts.isJsxAttribute(attribute))
+        .map(attribute => [attribute.name.getText(parsed), attribute.initializer?.getText(parsed)]));
+      if (['"firstName"', '"lastName"'].includes(attributes.id)) fields.push(attributes);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(parsed);
+  assert.equal(fields.length, 2);
+  for (const field of fields) {
+    assert.equal(field.minLength, '{5}');
+    assert.equal(field.maxLength, '{50}');
+    assert.match(field.title, /5–10/);
+    assert.match(field.onChange, /registrationNameInput/);
+  }
+});
+
+test('name input blocks an eleventh letter and pasted invalid names without counting accents twice', () => {
+  for (const valid of ['', 'Maria', 'a'.repeat(10), '𐐀'.repeat(10), 'q\u0301'.repeat(10)]) {
+    assert.equal(names.registrationNameInput(valid), valid.normalize('NFC'));
+  }
+  for (const invalid of ['a'.repeat(11), '𐐀'.repeat(11), 'Maria5', 'Maria Jane', 'Maria-Jane']) {
+    assert.equal(names.registrationNameInput(invalid), null);
   }
 });
 
