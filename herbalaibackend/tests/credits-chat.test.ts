@@ -68,9 +68,86 @@ describe('credit settlement around streaming and nonstreaming chat', () => {
     mocks.ask.mockRejectedValue(new AiResponseError());
     mocks.release.mockRejectedValueOnce(new Error('TEST database unavailable'));
     const response = await send();
-    expect(response.body).toMatchObject({ code: 'AI_RESPONSE_INCOMPLETE', creditStatus: 'recovery_pending' });
+    expect(response.body).toMatchObject({ code: 'AI_RESPONSE_INCOMPLETE', retryable: false, creditStatus: 'recovery_pending' });
     expect(mocks.release).toHaveBeenCalledOnce();
     expect(mocks.complete).not.toHaveBeenCalled();
+  });
+  it.each(['/chat', '/stream'])('reports generic provider failure and pending recovery for %s', async path => {
+    mocks.ask.mockRejectedValue(new Error('PRIVATE provider credential'));
+    mocks.stream.mockRejectedValue(new Error('PRIVATE provider credential'));
+    mocks.release.mockRejectedValueOnce(new Error('PRIVATE database unavailable'));
+    const response = await send(path);
+    if (path === '/chat') {
+      expect(response.status).toBe(503);
+      expect(response.body).toMatchObject({ code: 'AI_UNAVAILABLE', retryable: false, creditStatus: 'recovery_pending' });
+    } else {
+      const terminal = response.text.split('\n\n').find(event => event.startsWith('event: error\n'));
+      expect(terminal).toBeDefined();
+      expect(JSON.parse(terminal!.split('data: ')[1]!)).toMatchObject({ code: 'AI_UNAVAILABLE', retryable: false, creditStatus: 'recovery_pending' });
+      expect(response.text).not.toContain('event: done');
+    }
+    expect(response.text).not.toContain('PRIVATE');
+    expect(mocks.release).toHaveBeenCalledOnce();
+    expect(mocks.complete).not.toHaveBeenCalled();
+  });
+  describe.each(['json', 'stream-setup', 'stream-chunks'] as const)('terminal %s failure contract', phase => {
+    it.each(['released', 'recovery_pending', 'not_reserved'] as const)('reports truthful credit state %s for each failure kind', async creditStatus => {
+      const failures = [
+        { error: new Error('PRIVATE provider credential'), code: 'AI_UNAVAILABLE', retryable: true },
+        { error: new DOMException('PRIVATE timeout detail', 'TimeoutError'), code: 'AI_UNAVAILABLE', retryable: true },
+        { error: new AiResponseError(), code: 'AI_RESPONSE_INCOMPLETE', retryable: true },
+        { error: new AiResponseError(true), code: 'AI_RESPONSE_BLOCKED', retryable: false },
+      ];
+      for (const failure of failures) {
+        mocks.reserve.mockClear(); mocks.release.mockClear(); mocks.complete.mockClear();
+        mocks.ask.mockClear(); mocks.stream.mockClear();
+        if (creditStatus === 'not_reserved') vi.stubEnv('DR_AI_CREDITS_MODE', 'off');
+        if (creditStatus === 'recovery_pending') mocks.release.mockRejectedValueOnce(new Error('PRIVATE refund unavailable'));
+        mocks.ask.mockRejectedValue(failure.error);
+        if (phase === 'stream-chunks') {
+          mocks.stream.mockResolvedValue({ sources: [], chunks: (async function* () { throw failure.error; })(), getResult: vi.fn() });
+        } else {
+          mocks.stream.mockRejectedValue(failure.error);
+        }
+        const response = await send(phase === 'json' ? '/chat' : '/stream');
+        const events = response.text.split('\n\n').filter(event => event.startsWith('event: error\n'));
+        const body = phase === 'json' ? response.body : JSON.parse(events[0]!.split('data: ')[1]!);
+        expect(body).toEqual({ ...(phase === 'json' ? { status: 'error' } : {}),
+          message: failure.error instanceof AiResponseError ? failure.error.message : 'Dr. Ai is temporarily unavailable. Please try again later.',
+          code: failure.code, retryable: creditStatus !== 'recovery_pending' && failure.retryable, creditStatus });
+        if (phase === 'json') expect(response.status).toBe(503);
+        else {
+          expect(events).toHaveLength(1);
+          expect(response.text).not.toContain('event: done');
+          expect(response.text).not.toContain('event: chunk');
+        }
+        expect(response.text).not.toContain('PRIVATE');
+        expect(mocks.complete).not.toHaveBeenCalled();
+        expect(mocks.release).toHaveBeenCalledTimes(creditStatus === 'not_reserved' ? 0 : 1);
+        expect(phase === 'json' ? mocks.ask : mocks.stream).toHaveBeenCalledOnce();
+      }
+    });
+  });
+  it.each(['/chat', '/stream'])('preserves pre-generation credit errors and does not promise a refund for %s', async path => {
+    mocks.reserve.mockRejectedValue(new CreditError(402, 'No test credits.'));
+    const response = await send(path);
+    expect(response.status).toBe(402);
+    expect(response.body).toEqual({ status: 'error', message: 'No test credits.', code: 'AI_CREDIT_ERROR',
+      retryable: false, creditStatus: 'not_reserved' });
+    expect(mocks.release).not.toHaveBeenCalled();
+    expect(mocks.ask).not.toHaveBeenCalled();
+    expect(mocks.stream).not.toHaveBeenCalled();
+  });
+  it.each(['/chat', '/stream'])('reports pending recovery when saving the completed %s answer fails', async path => {
+    mocks.complete.mockRejectedValueOnce(new CreditError(503, 'The completed answer could not be saved.'));
+    mocks.release.mockRejectedValueOnce(new Error('PRIVATE database unavailable'));
+    const response = await send(path);
+    const body = path === '/chat' ? response.body : JSON.parse(response.text.split('\n\n')
+      .find(event => event.startsWith('event: error\n'))!.split('data: ')[1]!);
+    expect(body).toMatchObject({ code: 'AI_CREDIT_ERROR', retryable: false, creditStatus: 'recovery_pending' });
+    expect(response.text).not.toContain('event: done');
+    expect(mocks.release).toHaveBeenCalledOnce();
+    expect(mocks.complete).toHaveBeenCalledOnce();
   });
   it('refunds an incomplete stream and does not emit a completion event', async () => {
     mocks.stream.mockResolvedValue({ sources: [], chunks: (async function* () { yield 'partial'; throw new Error('TEST stream failed'); })(), getResult: () => ({ reply: 'partial', sources: [] }) });

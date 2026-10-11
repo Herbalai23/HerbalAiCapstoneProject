@@ -10,10 +10,10 @@ import { CreditError } from '../config/credits.js';
 import { completeCreditRequest, releaseCreditRequest } from '../repositories/credits.repository.js';
 import type { CreditHandle } from '../repositories/credits.repository.js';
 import { AiResponseError } from '../services/ai/core/response-completion.js';
-import type { AiCompletionError } from '../contracts/workflow-contracts.js';
+import type { AiRequestError } from '../contracts/workflow-contracts.js';
 
 type CompletedChat = { reply: string; history: ChatTurn[]; sources: unknown; meta?: unknown };
-const refundChatCredit = async (credit: CreditHandle | null | undefined): Promise<AiCompletionError['creditStatus']> => {
+const refundChatCredit = async (credit: CreditHandle | null | undefined): Promise<AiRequestError['creditStatus']> => {
   if (!credit || credit.replay) return 'not_reserved';
   try {
     await releaseCreditRequest(credit);
@@ -25,6 +25,14 @@ const refundChatCredit = async (credit: CreditHandle | null | undefined): Promis
 };
 
 const CHAT_UNAVAILABLE_MESSAGE = "Dr. Ai is temporarily unavailable. Please try again later.";
+
+const chatErrorResponse = (error: unknown, creditStatus: AiRequestError['creditStatus']): AiRequestError => ({
+  message: error instanceof CreditError || error instanceof AiResponseError ? error.message : CHAT_UNAVAILABLE_MESSAGE,
+  code: error instanceof AiResponseError ? error.code : error instanceof CreditError ? 'AI_CREDIT_ERROR' : 'AI_UNAVAILABLE',
+  retryable: creditStatus !== 'recovery_pending' && !(error instanceof CreditError)
+    && (!(error instanceof AiResponseError) || error.retryable),
+  creditStatus,
+});
 
 const createChatLifetime = (req: Request, res: Response) => {
   const deadline = createAiDeadline(ENV.DR_AI_REQUEST_TIMEOUT_MS);
@@ -123,12 +131,11 @@ export const sendMessage = async (req: Request, res: Response) => {
     const creditStatus = !completed ? await refundChatCredit(credit) : 'not_reserved';
     if (!completed) credit = null;
     if (res.destroyed || req.aborted) return;
-    const err = error as { message?: string; status?: number };
-    console.error("Chat Controller Error:", err?.message || error);
+    const response = chatErrorResponse(error, creditStatus);
+    console.error("Chat Controller Error:", response.code);
     return res.status(error instanceof CreditError ? error.status : 503).json({
       status: "error",
-      message: error instanceof CreditError || error instanceof AiResponseError ? error.message : CHAT_UNAVAILABLE_MESSAGE,
-      ...(error instanceof AiResponseError ? { code: error.code, retryable: error.retryable, creditStatus } : {}),
+      ...response,
     });
   } finally {
     if (!completed) await refundChatCredit(credit);
@@ -200,19 +207,15 @@ export const streamMessage = async (req: Request, res: Response) => {
     const creditStatus = !completed ? await refundChatCredit(credit) : 'not_reserved';
     if (!completed) credit = null;
     if (res.destroyed || req.aborted) return;
-    const err = error as { message?: string; status?: number };
-    console.error("Streaming Chat Controller Error:", err?.message || error);
+    const response = chatErrorResponse(error, creditStatus);
+    console.error("Streaming Chat Controller Error:", response.code);
     if (!res.headersSent) {
       return res.status(error instanceof CreditError ? error.status : 503).json({
         status: "error",
-        message: error instanceof CreditError || error instanceof AiResponseError ? error.message : CHAT_UNAVAILABLE_MESSAGE,
-        ...(error instanceof AiResponseError ? { code: error.code, retryable: error.retryable, creditStatus } : {}),
+        ...response,
       });
     }
-    writeSse(res, "error", {
-      message: error instanceof AiResponseError ? error.message : CHAT_UNAVAILABLE_MESSAGE,
-      ...(error instanceof AiResponseError ? { code: error.code, retryable: error.retryable, creditStatus } : {}),
-    });
+    writeSse(res, "error", response);
     return res.end();
   } finally {
     if (!completed) await refundChatCredit(credit);

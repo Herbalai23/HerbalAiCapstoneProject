@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventEmitter } from 'node:events';
 
 const mocks = vi.hoisted(() => ({ askDrAi: vi.fn(), streamDrAi: vi.fn() }));
@@ -7,7 +7,11 @@ vi.mock('../src/services/chat.service.js', () => mocks);
 import { sendMessage, streamMessage } from '../src/controllers/chat.controller.js';
 
 describe('Dr. Ai provider errors', () => {
-  beforeEach(() => vi.resetAllMocks());
+  beforeEach(() => {
+    vi.resetAllMocks();
+    vi.stubEnv('DR_AI_CREDITS_MODE', 'off');
+  });
+  afterEach(() => vi.unstubAllEnvs());
 
   it('does not expose provider details in the JSON response', async () => {
     mocks.askDrAi.mockRejectedValue(new Error('Provider key and model details'));
@@ -20,6 +24,7 @@ describe('Dr. Ai provider errors', () => {
     expect(json).toHaveBeenCalledWith({
       status: 'error',
       message: 'Dr. Ai is temporarily unavailable. Please try again later.',
+      code: 'AI_UNAVAILABLE', retryable: true, creditStatus: 'not_reserved',
     });
   });
 
@@ -47,6 +52,21 @@ describe('Dr. Ai provider errors', () => {
     expect(writes.join('')).toContain('event: error');
     expect(writes.join('')).toContain('Dr. Ai is temporarily unavailable. Please try again later.');
     expect(writes.join('')).not.toContain('Provider key and model details');
+    expect(writes.join('')).toContain('"code":"AI_UNAVAILABLE"');
+    expect(writes.join('')).toContain('"creditStatus":"not_reserved"');
     expect(res.end).toHaveBeenCalledOnce();
+  });
+
+  it('does not copy private provider text into controller diagnostics', async () => {
+    const diagnostic = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    try {
+      mocks.askDrAi.mockRejectedValue(new Error('PRIVATE provider credential'));
+      const response = Object.assign(new EventEmitter(), { status: vi.fn().mockReturnThis(), json: vi.fn() });
+      await sendMessage(Object.assign(new EventEmitter(), { body: { message: 'Lagundi' } }) as never, response as never);
+      expect(diagnostic).toHaveBeenCalledWith('Chat Controller Error:', 'AI_UNAVAILABLE');
+      expect(JSON.stringify(diagnostic.mock.calls)).not.toContain('PRIVATE');
+    } finally {
+      diagnostic.mockRestore();
+    }
   });
 });

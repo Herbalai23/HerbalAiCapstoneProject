@@ -87,7 +87,8 @@ describe('Chat request lifetime (no database or provider calls)', () => {
     await vi.advanceTimersByTimeAsync(90);
     await pending;
     expect(res.status).toHaveBeenCalledWith(503);
-    expect(res.json).toHaveBeenCalledWith({ status: 'error', message: 'Dr. Ai is temporarily unavailable. Please try again later.' });
+    expect(res.json).toHaveBeenCalledWith({ status: 'error', message: 'Dr. Ai is temporarily unavailable. Please try again later.',
+      code: 'AI_UNAVAILABLE', retryable: true, creditStatus: 'not_reserved' });
     expect(mocks.askDrAi.mock.calls[0]?.[2]?.signal?.reason.name).toBe('TimeoutError');
     expect(vi.getTimerCount()).toBe(0);
   });

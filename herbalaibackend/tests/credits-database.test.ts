@@ -464,6 +464,35 @@ describe.skipIf(!connectionUrl)('real PostgreSQL test wallet transactions', () =
     expect(path === '/chat' ? result.status : result.text.includes('event: error')).toBe(path === '/chat' ? 503 : true);
     expect(await walletBalance()).toBe(3);
     expect((await pool.query('SELECT status FROM "CreditRequest"')).rows[0].status).toBe('RELEASED');
+    const failure = path === '/chat' ? result.body : JSON.parse(result.text.split('\n\n')
+      .find(event => event.startsWith('event: error\n'))!.split('data: ')[1]!);
+    expect(failure).toMatchObject({ code: 'AI_UNAVAILABLE', retryable: true, creditStatus: 'released' });
+  });
+  it.each(['/chat', '/chat/stream'])('reports a rolled-back HTTP refund and recovers exactly once after expiry through %s', async path => {
+    state.ask.mockRejectedValue(new Error('PRIVATE provider detail'));
+    state.stream.mockRejectedValue(new Error('PRIVATE provider detail'));
+    const key = randomUUID();
+    await pool.query('ALTER TABLE "CreditLedger" ADD CONSTRAINT test_block_http_refund CHECK (kind <> \'REFUND\')');
+    try {
+      const result = await chat(key, path);
+      const failure = path === '/chat' ? result.body : JSON.parse(result.text.split('\n\n')
+        .find(event => event.startsWith('event: error\n'))!.split('data: ')[1]!);
+      expect(failure).toMatchObject({ code: 'AI_UNAVAILABLE', retryable: false, creditStatus: 'recovery_pending' });
+      expect(result.text).not.toContain('PRIVATE');
+      expect(result.text).not.toContain('event: done');
+      expect(await walletBalance()).toBe(2);
+      expect((await pool.query('SELECT status FROM "CreditRequest" WHERE "requestKey"=$1', [key])).rows[0].status).toBe('RESERVED');
+      expect((await pool.query('SELECT COUNT(*)::int AS count FROM "CreditLedger" WHERE kind=\'REFUND\'')).rows[0].count).toBe(0);
+    } finally {
+      await pool.query('ALTER TABLE "CreditLedger" DROP CONSTRAINT test_block_http_refund');
+    }
+    await pool.query('UPDATE "CreditRequest" SET "expiresAt"=CURRENT_TIMESTAMP-INTERVAL \'1 second\' WHERE "requestKey"=$1', [key]);
+    expect((await request(app).get('/credits').set('Authorization', bearer())).body.data.balance).toBe(3);
+    expect((await request(app).get('/credits').set('Authorization', bearer())).body.data.balance).toBe(3);
+    expect((await pool.query('SELECT status FROM "CreditRequest" WHERE "requestKey"=$1', [key])).rows[0].status).toBe('RELEASED');
+    expect((await pool.query('SELECT COUNT(*)::int AS count FROM "CreditLedger" WHERE kind=\'REFUND\'')).rows[0].count).toBe(1);
+    expect((await chat(key, path)).status).toBe(409);
+    expect(path === '/chat' ? state.ask : state.stream).toHaveBeenCalledOnce();
   });
   it.each(['/chat', '/chat/stream'])('refunds an actual client disconnect exactly once through %s', async path => {
     let generating = false;

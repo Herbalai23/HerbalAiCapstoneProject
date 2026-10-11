@@ -19,6 +19,10 @@ export type AiCompletionError = {
   creditStatus: 'not_reserved' | 'released' | 'recovery_pending';
 };
 
+export type AiRequestError = Omit<AiCompletionError, 'code'> & {
+  code: AiCompletionError['code'] | 'AI_UNAVAILABLE' | 'AI_CREDIT_ERROR';
+};
+
 export type SubmissionHistoryPage<Suggestion> = {
   suggestions: (Suggestion & { historyEligibleAt: string | null })[];
   total: number;

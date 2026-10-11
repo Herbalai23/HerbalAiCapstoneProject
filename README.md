@@ -102,6 +102,10 @@ DR_AI_MODEL_COOLDOWN_MS=60000
 
 `DR_AI_MAX_OUTPUT_TOKENS` defaults to 4096 and is clamped to 2048–8192. Thinking models use generation headroom for both reasoning and visible answers, so a short visible reply can still reach the output limit. The larger default does not relax source-grounding, safety, completion validation, credit refunds or request deadlines. Generation logs record only bounded token counts and normalized terminal reasons, not prompts, answers, thoughts or credentials. Increase allowance only after checking provider usage and latency; a successful model response does not establish medical accuracy.
 
+Chat controller failure responses use the shared `AiRequestError` contract for JSON and terminal SSE errors: a safe `message`, `code`, `retryable`, and `creditStatus`. Existing `AI_RESPONSE_INCOMPLETE` and `AI_RESPONSE_BLOCKED` codes are retained; generic provider/deadline failures use `AI_UNAVAILABLE`, and credit validation/settlement errors use `AI_CREDIT_ERROR`. Pre-controller authentication, rate-limit and schema-validation responses retain their existing contracts.
+
+Do not promise a refund when `creditStatus` is `recovery_pending`: preserve the draft and reconcile the wallet before another paid attempt. Recovery-pending, safety-blocked and credit errors have `retryable: false`; other generation errors permit a user-confirmed retry only after reconciling any ambiguous result. This flag is not an instruction to retry automatically. Replayed completed answers use the original idempotency key without another debit. These controller diagnostics log normalized error codes rather than raw provider messages; other provider-layer diagnostics remain separate.
+
 Initialize the database and load the configured seed catalog:
 ```bash
 npx prisma generate
