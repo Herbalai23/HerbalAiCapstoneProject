@@ -1,7 +1,7 @@
 import BrandMark from './BrandMark';
 
 interface AuthBrandPanelProps {
-  mode: 'signin' | 'signup';
+  mode: 'signin' | 'signup' | 'forgot-password';
 }
 
 export default function AuthBrandPanel({ mode }: AuthBrandPanelProps) {
@@ -15,7 +15,9 @@ export default function AuthBrandPanel({ mode }: AuthBrandPanelProps) {
         <p className="auth-brand-lead mt-3 max-w-lg text-sm leading-relaxed text-[#f5f2eb]/85 sm:text-base">
           {mode === 'signin'
             ? 'Traditional plant knowledge, organized for clearer and safer learning.'
-            : 'Help preserve local medicinal-plant knowledge in a careful digital library.'}
+            : mode === 'signup'
+            ? 'Help preserve local medicinal-plant knowledge in a careful digital library.'
+            : 'Secure and accessible preservation of traditional Philippine herbal medicine.'}
         </p>
         <div className="auth-brand-rule hidden sm:flex" aria-hidden="true"><span /></div>
         <ul className="auth-brand-points hidden sm:grid">
