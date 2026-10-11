@@ -9,7 +9,7 @@ import DrAiAvatar from '../../components/DrAiAvatar';
 import DrAiCreditsStatus from '../../components/DrAiCreditsStatus';
 import Link from 'next/link';
 import { cachedApiGet } from '../../lib/request-cache';
-import { DrAiCreditError, streamDrAiResponse } from '../../lib/dr-ai-stream';
+import { drAiFailureFeedback, streamDrAiResponse } from '../../lib/dr-ai-stream';
 import { Send, Sparkles, BookOpen, AlertCircle, ShieldAlert, Leaf, ExternalLink } from 'lucide-react';
 
 interface ChatTurn {
@@ -168,7 +168,7 @@ function ChatContent() {
       if (!mountedRef.current || controller.signal.aborted || activeRequestRef.current !== controller) return;
       setMessages((prev) => prev.filter((message) => message.id !== modelMessageId && message.id !== userMsgId));
       setInput((current) => current || queryText);
-      setChatError(error instanceof DrAiCreditError ? error.message : 'Dr. Ai could not complete the answer. Your draft was restored and no credits were deducted. Please try again later.');
+      setChatError(drAiFailureFeedback(error));
     } finally {
       if (activeRequestRef.current === controller) {
         activeRequestRef.current = null;

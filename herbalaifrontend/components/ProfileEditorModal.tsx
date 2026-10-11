@@ -94,7 +94,7 @@ export default function ProfileEditorModal({ isOpen, onClose }: ProfileEditorMod
             <Save className="h-4 w-4" /> {saving ? 'Saving...' : 'Save profile'}
           </button>
         </form>
-        <PasswordSettings email={user.email} onChanged={onClose} />
+        <PasswordSettings email={user.email} hasLocalPassword={user.hasLocalPassword} passwordStatus={user.passwordStatus} onChanged={onClose} />
       </div>
     </div>
   );

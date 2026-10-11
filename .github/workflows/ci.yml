@@ -44,6 +44,12 @@ jobs:
       - name: Run offline herb research generator regressions
         run: python3 -B -m unittest discover -s scripts -p test_herb_research_queue.py -v
 
+      - name: Run restore-check target safety regressions
+        run: node --test scripts/restore-test-boundary.test.mjs
+
+      - name: Run admin rehearsal target safety regressions
+        run: node --test scripts/admin-rehearsal-boundary.test.mjs
+
       - name: Generate Prisma Client
         working-directory: herbalaibackend
         env:
@@ -72,6 +78,7 @@ jobs:
           tests/herb-admin-edit-database.test.ts tests/helpers/admin-edit-database-boundary.ts
           tests/api-security-boundaries.test.ts tests/api-outage-forwarding.test.ts tests/socket-security-boundaries.test.ts
           tests/knowledge-import-atomicity.test.ts tests/knowledge-import-database.test.ts tests/knowledge-authenticated-flow.test.ts
+          tests/knowledge-page-filters-database.test.ts
           tests/credits-config.test.ts tests/credits-database.test.ts
           tests/knowledge-import-boundary.test.ts tests/helpers/knowledge-import-server-boundary.ts
           tests/dr-ai-introduction.test.ts tests/dr-ai-local-language-retrieval.test.ts
@@ -164,7 +171,7 @@ jobs:
 
       - name: Run administrator logout regressions
         working-directory: herbalaifrontend
-        run: node --test ../scripts/admin-logout.test.mjs
+        run: node --test ../scripts/admin-logout.test.mjs ../scripts/workflow-integrations.test.mjs
 
       - name: Run library keyboard regressions
         working-directory: herbalaifrontend

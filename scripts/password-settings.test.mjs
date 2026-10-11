@@ -117,6 +117,27 @@ test('settings explain optional app-password creation without claiming to know t
   assert.match(markup, /test@example.invalid/);
 });
 
+for (const capability of [{ hasLocalPassword: false }, { passwordStatus: 'unset' }, { hasLocalPassword: false, passwordStatus: 'unset' }]) {
+  test(`Google-only capability hides the impossible change form ${JSON.stringify(capability)}`, () => {
+    const component = load(compiled, React, {});
+    const markup = renderToStaticMarkup(React.createElement(component, { email: user.email, ...capability, onChanged() {} }));
+    assert.doesNotMatch(markup, /Current password|Change password|autoComplete="current-password"/i);
+    assert.match(markup, /no Herbal-Ai password yet/);
+    assert.match(markup, /Email a password link/);
+    assert.match(markup, /Do not enter your Google password/);
+  });
+}
+
+for (const capability of [{ hasLocalPassword: true, passwordStatus: 'set' }, { hasLocalPassword: null, passwordStatus: 'unknown' }, {}]) {
+  test(`local or legacy-unknown capability retains current-password verification ${JSON.stringify(capability)}`, () => {
+    const component = load(compiled, React, {});
+    const markup = renderToStaticMarkup(React.createElement(component, { email: user.email, ...capability, onChanged() {} }));
+    assert.match(markup, /Current password/);
+    assert.match(markup, /Change password/);
+    assert.match(markup, /Email a password link/);
+  });
+}
+
 const pageOverrides = token => ({
   'next/link': { __esModule: true, default: ({ href, children }) => React.createElement('a', { href }, children) },
   'next/navigation': { useRouter: () => ({ replace() {} }), useSearchParams: () => new URLSearchParams(token ? { token } : {}) },

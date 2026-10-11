@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../context/AuthContext';
 import Navbar from '../../components/Navbar';
@@ -30,6 +30,7 @@ interface Submission {
   reviewNotes?: string | null;
   createdAt: string;
   updatedAt: string;
+  historyEligibleAt?: string | null;
 }
 
 const submissionStatusCopy: Record<SuggestionStatus, { title: string; detail: string }> = {
@@ -83,31 +84,18 @@ export default function SuggestHerbPage() {
   const [editingSubmission, setEditingSubmission] = useState<Submission | null>(null);
   const [submissionsTab, setSubmissionsTab] = useState<'all' | 'active' | 'history'>('all');
   const [submissionsPage, setSubmissionsPage] = useState(1);
+  const [submissionsTotal, setSubmissionsTotal] = useState(0);
+  const [submissionsCounts, setSubmissionsCounts] = useState({ all: 0, active: 0, history: 0 });
+  const [submissionsLoading, setSubmissionsLoading] = useState(true);
   const SUBMISSIONS_PER_PAGE = 5;
 
-  const activeSubmissions = useMemo(
-    () => submissions.filter((s) => s.status === 'Pending' || s.status === 'ChangesRequested'),
-    [submissions]
-  );
-  const historySubmissions = useMemo(
-    () => submissions.filter((s) => s.status === 'Approved' || s.status === 'Rejected'),
-    [submissions]
-  );
-  const displayedSubmissions = useMemo(() => {
-    if (submissionsTab === 'active') return activeSubmissions;
-    if (submissionsTab === 'history') return historySubmissions;
-    return submissions;
-  }, [submissionsTab, activeSubmissions, historySubmissions, submissions]);
-
-  const totalSubmissionPages = Math.max(1, Math.ceil(displayedSubmissions.length / SUBMISSIONS_PER_PAGE));
-  const paginatedSubmissions = useMemo(() => {
-    const start = (submissionsPage - 1) * SUBMISSIONS_PER_PAGE;
-    return displayedSubmissions.slice(start, start + SUBMISSIONS_PER_PAGE);
-  }, [displayedSubmissions, submissionsPage]);
+  const totalSubmissionPages = Math.max(1, Math.ceil(submissionsTotal / SUBMISSIONS_PER_PAGE));
 
   const handleTabChange = (tab: 'all' | 'active' | 'history') => {
+    if (tab === submissionsTab && submissionsPage === 1) return;
     setSubmissionsTab(tab);
     setSubmissionsPage(1);
+    setSubmissionsLoading(true);
   };
 
   // Categories list based on backend expectations and capstone structure
@@ -136,16 +124,31 @@ export default function SuggestHerbPage() {
 
     const loadSubmissions = async () => {
       const requestId = ++latestRequest;
+      setSubmissionsLoading(true);
       try {
         setSubmissionsError(null);
-        const res = await api.get('/suggest');
+        const res = await api.get('/suggest', { params: {
+          view: submissionsTab, scope: 'mine', page: submissionsPage, limit: SUBMISSIONS_PER_PAGE,
+        } });
         if (!cancelled && requestId === latestRequest && res.data?.status === 'success') {
-          setSubmissions(res.data.data.suggestions || []);
+          const data = res.data.data;
+          const lastPage = Math.max(1, Math.ceil(data.total / SUBMISSIONS_PER_PAGE));
+          if (submissionsPage > lastPage) {
+            setSubmissionsPage(lastPage);
+            return;
+          }
+          setSubmissions(data.suggestions || []);
+          setSubmissionsTotal(data.total);
+          setSubmissionsCounts(data.counts);
+        } else if (!cancelled && requestId === latestRequest) {
+          throw new Error('Failed to load your previous suggestions.');
         }
       } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
         if (!cancelled && requestId === latestRequest) {
           setSubmissionsError(err.response?.data?.message || 'Failed to load your previous suggestions.');
         }
+      } finally {
+        if (!cancelled && requestId === latestRequest) setSubmissionsLoading(false);
       }
     };
 
@@ -157,12 +160,14 @@ export default function SuggestHerbPage() {
     void loadSubmissions();
     window.addEventListener('focus', handleFocus);
     document.addEventListener('visibilitychange', handleVisibilityChange);
+    const historyTimer = window.setInterval(() => { void loadSubmissions(); }, 60_000);
     return () => {
       cancelled = true;
       window.removeEventListener('focus', handleFocus);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.clearInterval(historyTimer);
     };
-  }, [isAuthenticated, submissionsRefresh]);
+  }, [isAuthenticated, user?.id, submissionsRefresh, submissionsTab, submissionsPage]);
 
   // Cleanup object URL to prevent memory leaks
   useEffect(() => {
@@ -252,8 +257,9 @@ export default function SuggestHerbPage() {
 
       if (response.data?.status === 'success') {
         setSubmittedHerb(response.data.data.suggestion);
-        const saved = response.data.data.suggestion as Submission;
-        setSubmissions((current) => [saved, ...current.filter((item) => item.id !== saved.id)]);
+        setSubmissionsTab('active');
+        setSubmissionsPage(1);
+        setSubmissionsRefresh(current => current + 1);
         setEditingSubmission(null);
         setSuccess(true);
         window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -367,7 +373,7 @@ export default function SuggestHerbPage() {
               <div className="flex items-center gap-2">
                 <button type="button" onClick={() => setSubmissionsRefresh((current) => current + 1)} className="text-xs font-semibold text-[#2d6a4f] dark:text-[#74c69d] underline-offset-2 hover:underline">Refresh status</button>
                 <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-[#eef5f0] dark:bg-soft border border-[#2d6a4f]/20 text-[#2d6a4f] dark:text-[#74c69d]">
-                  {submissions.length} {submissions.length === 1 ? 'record' : 'records'}
+                  {submissionsCounts.all} {submissionsCounts.all === 1 ? 'record' : 'records'}
                 </span>
               </div>
             </div>
@@ -383,7 +389,7 @@ export default function SuggestHerbPage() {
                     : 'bg-[#eef5f0] dark:bg-soft text-[#1b4332] dark:text-muted hover:bg-[#eef5f0]/80'
                 }`}
               >
-                All ({submissions.length})
+                All ({submissionsCounts.all})
               </button>
               <button
                 type="button"
@@ -394,7 +400,7 @@ export default function SuggestHerbPage() {
                     : 'bg-[#eef5f0] dark:bg-soft text-[#1b4332] dark:text-muted hover:bg-[#eef5f0]/80'
                 }`}
               >
-                Active ({activeSubmissions.length})
+                Active ({submissionsCounts.active})
               </button>
               <button
                 type="button"
@@ -405,22 +411,24 @@ export default function SuggestHerbPage() {
                     : 'bg-[#eef5f0] dark:bg-soft text-[#1b4332] dark:text-muted hover:bg-[#eef5f0]/80'
                 }`}
               >
-                History ({historySubmissions.length})
+                History ({submissionsCounts.history})
               </button>
             </div>
 
+            <p className="mb-3 text-xs text-muted">Approved and rejected submissions remain Active for 24 hours after review, then move to History. Records are not automatically deleted.</p>
+            {submissionsLoading && <p role="status" className="text-sm text-muted">Loading submissions…</p>}
             {submissionsError && <p role="alert" className="mt-3 text-rose-600 font-semibold text-sm">{submissionsError}</p>}
 
-            {!submissionsError && displayedSubmissions.length === 0 && (
+            {!submissionsLoading && !submissionsError && submissionsTotal === 0 && (
               <div className="rounded-2xl border border-dashed border-black/15 dark:border-line p-6 text-center text-sm text-gray-600 dark:text-muted">
-                {submissions.length === 0 && 'You have no herb suggestions yet.'}
-                {submissions.length > 0 && submissionsTab === 'active' && 'No active submissions in review or revision.'}
-                {submissions.length > 0 && submissionsTab === 'history' && 'No submission history (approved or rejected records).'}
+                {submissionsCounts.all === 0 && 'You have no herb suggestions yet.'}
+                {submissionsCounts.all > 0 && submissionsTab === 'active' && 'No active submissions in review, revision, or the first 24 hours after review.'}
+                {submissionsCounts.all > 0 && submissionsTab === 'history' && 'No reviewed submissions have reached History yet.'}
               </div>
             )}
 
             <div className="mt-4 grid gap-4">
-              {paginatedSubmissions.map((submission) => (
+              {!submissionsLoading && !submissionsError && submissions.map((submission) => (
                 <article key={submission.id} className="rounded-2xl border border-black/10 dark:border-line bg-white/70 dark:bg-panel p-4 text-[#1b4332] dark:text-ink">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
@@ -452,13 +460,13 @@ export default function SuggestHerbPage() {
             {totalSubmissionPages > 1 && (
               <div className="mt-4 flex items-center justify-between border-t border-[#1b4332]/10 dark:border-line pt-3 text-xs">
                 <span className="text-gray-500 dark:text-muted font-medium">
-                  Page {submissionsPage} of {totalSubmissionPages} ({displayedSubmissions.length} {displayedSubmissions.length === 1 ? 'record' : 'records'})
+                  Page {submissionsPage} of {totalSubmissionPages} ({submissionsTotal} {submissionsTotal === 1 ? 'record' : 'records'})
                 </span>
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
                     onClick={() => setSubmissionsPage((p) => Math.max(1, p - 1))}
-                    disabled={submissionsPage === 1}
+                    disabled={submissionsLoading || submissionsPage === 1}
                     className="rounded-lg border border-line bg-panel px-2.5 py-1 font-semibold text-ink disabled:opacity-40 disabled:cursor-not-allowed hover:bg-soft transition-colors"
                   >
                     Previous
@@ -466,7 +474,7 @@ export default function SuggestHerbPage() {
                   <button
                     type="button"
                     onClick={() => setSubmissionsPage((p) => Math.min(totalSubmissionPages, p + 1))}
-                    disabled={submissionsPage === totalSubmissionPages}
+                    disabled={submissionsLoading || submissionsPage === totalSubmissionPages}
                     className="rounded-lg border border-line bg-panel px-2.5 py-1 font-semibold text-ink disabled:opacity-40 disabled:cursor-not-allowed hover:bg-soft transition-colors"
                   >
                     Next

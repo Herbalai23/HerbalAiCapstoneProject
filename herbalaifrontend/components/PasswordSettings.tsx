@@ -6,7 +6,13 @@ import { Eye, EyeOff, KeyRound, Mail } from 'lucide-react';
 import api from '../lib/axios';
 import { requestError, responseMessage } from '../lib/request-feedback';
 
-export default function PasswordSettings({ email, onChanged }: { email: string; onChanged: () => void }) {
+export default function PasswordSettings({ email, hasLocalPassword, passwordStatus, onChanged }: {
+  email: string;
+  hasLocalPassword?: boolean | null;
+  passwordStatus?: 'set' | 'unset' | 'unknown';
+  onChanged: () => void;
+}) {
+  const needsPasswordSetup = passwordStatus === 'unset' || hasLocalPassword === false;
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmation, setConfirmation] = useState('');
@@ -29,7 +35,7 @@ export default function PasswordSettings({ email, onChanged }: { email: string; 
 
   const handleChangePassword = async (event: FormEvent) => {
     event.preventDefault();
-    if (requestPending.current) return;
+    if (requestPending.current || needsPasswordSetup) return;
     setError(null);
     setMessage(null);
     setLinkError(null);
@@ -84,6 +90,9 @@ export default function PasswordSettings({ email, onChanged }: { email: string; 
       <h3 id="password-settings-title" className="flex items-center gap-2 text-lg font-bold text-ink">
         <KeyRound className="h-5 w-5" aria-hidden="true" /> Herbal-Ai password
       </h3>
+      {needsPasswordSetup ? (
+        <p className="mt-2 text-sm text-muted">Your account has no Herbal-Ai password yet. Use the email link below to create one. Do not enter your Google password here.</p>
+      ) : <>
       <p id="password-change-help" className="mt-2 text-sm text-muted">Use at least 8 characters. Changing your password signs you out on all devices.</p>
       <form onSubmit={handleChangePassword} aria-describedby={error ? 'password-change-help password-change-error' : 'password-change-help'} className="mt-4 space-y-4">
         {fields.map(field => (
@@ -110,6 +119,7 @@ export default function PasswordSettings({ email, onChanged }: { email: string; 
           {busy === 'change' ? 'Changing password…' : 'Change password'}
         </button>
       </form>
+      </>}
       <div className="mt-6">
         <h4 className="font-bold text-ink">Create or reset your Herbal-Ai password</h4>
         <p className="mt-2 break-words text-sm text-muted">Signed in with Google and haven&apos;t created a Herbal-Ai password? Request a link at {email} to create one. You can also use this link if you forgot an existing Herbal-Ai password.</p>

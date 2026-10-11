@@ -11,6 +11,10 @@ const compiled = ts.transpileModule(source, {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true },
 }).outputText;
 const banPolicy = {};
+const knowledgeSource = {};
+new Function('exports', ts.transpileModule(await readFile(new URL('../herbalaifrontend/lib/knowledge-source.ts', import.meta.url), 'utf8'), {
+  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+}).outputText)(knowledgeSource);
 new Function('exports', ts.transpileModule(await readFile(new URL('../herbalaifrontend/lib/user-ban.ts', import.meta.url), 'utf8'), {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
 }).outputText)(banPolicy);
@@ -64,6 +68,7 @@ const fixture = ({ logout = async () => {}, role = 'admin', loading = false } = 
     }) };
     if (name === '../../lib/axios') return {};
     if (name === '../../lib/user-ban') return banPolicy;
+    if (name === '../../lib/knowledge-source') return knowledgeSource;
     if (name === '../../lib/request-cache') return { cachedApiGet: async () => {}, invalidateApiGetCache() {} };
     if (name === '../../components/DisplayPreferences') return { ThemeToggle: wrapper };
     if (name === '../../components/ui/button') return { Button: props => React.createElement('button', props, props.children) };

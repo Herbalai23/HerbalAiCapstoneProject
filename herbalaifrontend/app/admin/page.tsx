@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import dynamic from 'next/dynamic';
 import { useAuth } from '../../context/AuthContext';
@@ -8,6 +8,7 @@ import SessionUnavailable from '../../components/SessionUnavailable';
 import { useRouter } from 'next/navigation';
 import api from '../../lib/axios';
 import { cachedApiGet, invalidateApiGetCache } from '../../lib/request-cache';
+import { getKnowledgePrimarySource } from '../../lib/knowledge-source';
 import SuggestionReviewEditor, { type ReviewReference } from '../../components/SuggestionReviewEditor';
 import BrandMark from '../../components/BrandMark';
 import { ThemeToggle } from '../../components/DisplayPreferences';
@@ -197,6 +198,8 @@ export default function AdminPage() {
   const [kbList, setKbList] = useState<KBItem[]>([]);
   const [kbPage, setKbPage] = useState(1);
   const [kbTotal, setKbTotal] = useState(0);
+  const [availableKbCategories, setAvailableKbCategories] = useState<string[]>([]);
+  const [kbLoading, setKbLoading] = useState(false);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(null);
   
@@ -239,30 +242,7 @@ export default function AdminPage() {
   const [expandedKbIds, setExpandedKbIds] = useState<Set<string>>(new Set());
   const [copiedKbId, setCopiedKbId] = useState<string | null>(null);
 
-  const availableKbCategories = useMemo(() => {
-    const categories = new Set<string>();
-    kbList.forEach((item) => {
-      if (item.category && item.category.trim()) {
-        categories.add(item.category.trim());
-      }
-    });
-    return Array.from(categories).sort();
-  }, [kbList]);
-
-  const filteredKbList = useMemo(() => {
-    return kbList.filter((item) => {
-      if (kbCategoryFilter !== 'ALL' && (item.category || '').trim() !== kbCategoryFilter) {
-        return false;
-      }
-      if (kbStatusFilter === 'ACTIVE' && !item.isActive) {
-        return false;
-      }
-      if (kbStatusFilter === 'INACTIVE' && item.isActive) {
-        return false;
-      }
-      return true;
-    });
-  }, [kbList, kbCategoryFilter, kbStatusFilter]);
+  const filteredKbList = kbList;
 
   // Herb Edit Modals and forms
   const [isHerbModalOpen, setIsHerbModalOpen] = useState(false);
@@ -309,10 +289,15 @@ export default function AdminPage() {
   }, [kbSearch]);
 
   const refreshKbPage = async () => {
-    const response = await api.get('/knowledge-base/page', { params: { page: kbPage, limit: 25, search: debouncedKbSearch } });
+    const response = await api.get('/knowledge-base/page', { params: {
+      page: kbPage, limit: 25, search: debouncedKbSearch,
+      category: kbCategoryFilter === 'ALL' ? undefined : kbCategoryFilter, status: kbStatusFilter,
+    } });
     if (response.data?.status === 'success') {
       setKbList(response.data.data.items || []);
       setKbTotal(response.data.data.total || 0);
+      setAvailableKbCategories(response.data.data.categories || []);
+      setKbPage(response.data.data.page || 1);
     }
   };
 
@@ -368,11 +353,19 @@ export default function AdminPage() {
           }
         }
         if (activeTab === 'knowledgebase') {
-          const kbRes = await api.get('/knowledge-base/page', { params: { page: kbPage, limit: 25, search: debouncedKbSearch } });
+          setKbLoading(true);
+          const kbRes = await api.get('/knowledge-base/page', { params: {
+            page: kbPage, limit: 25, search: debouncedKbSearch,
+            category: kbCategoryFilter === 'ALL' ? undefined : kbCategoryFilter, status: kbStatusFilter,
+          } });
           if (cancelled) return;
           if (kbRes.data?.status === 'success') {
             setKbList(kbRes.data.data.items || []);
             setKbTotal(kbRes.data.data.total || 0);
+            setAvailableKbCategories(kbRes.data.data.categories || []);
+            setKbPage(kbRes.data.data.page || 1);
+          } else {
+            throw new Error('Unable to load knowledge base facts.');
           }
         }
         if (activeTab === 'audit') {
@@ -384,6 +377,8 @@ export default function AdminPage() {
         if (!cancelled) {
           setError(getErrorMessage(error, activeTab === 'pending' ? 'Unable to load suggestions. Please try again.' : 'Error connecting to server.'));
         }
+      } finally {
+        if (!cancelled && activeTab === 'knowledgebase') setKbLoading(false);
       }
     };
 
@@ -398,7 +393,7 @@ export default function AdminPage() {
     return () => {
       cancelled = true;
     };
-  }, [loading, isAuthenticated, sessionUnavailable, user?.role, router, activeTab, usersPage, herbsPage, debouncedLibrarySearch, kbPage, debouncedKbSearch, refreshSuggestions]);
+  }, [loading, isAuthenticated, sessionUnavailable, user?.role, router, activeTab, usersPage, herbsPage, debouncedLibrarySearch, kbPage, debouncedKbSearch, kbCategoryFilter, kbStatusFilter, refreshSuggestions]);
 
   const handleApprove = async (id: number) => {
     if (actioningId !== null) return;
@@ -406,8 +401,11 @@ export default function AdminPage() {
       setActioningId(id);
       setError(null);
       setSuccessMsg(null);
-      const selected = evidenceClassById[id] || suggestions.find((suggestion) => suggestion.id === id)?.evidenceClass;
-      const evidenceClass = (selected && selected !== 'UNASSESSED') ? selected : 'DOCUMENTED_TRADITIONAL_USE';
+      const evidenceClass = evidenceClassById[id];
+      if (!evidenceClass || evidenceClass === 'UNASSESSED') {
+        setError('Select an evidence classification before publishing.');
+        return;
+      }
       const res = await api.post(`/suggest/${id}/approve`, {
         revision: suggestions.find((suggestion) => suggestion.id === id)?.revision,
         evidenceClass,
@@ -692,8 +690,7 @@ export default function AdminPage() {
       const res = await api.delete(`/knowledge-base/${id}`);
       if (res.data?.status === 'success') {
         setSuccessMsg('Knowledge base entry deleted successfully.');
-        setKbList((prev) => prev.filter((item) => item.id !== id));
-        setKbTotal((total) => Math.max(0, total - 1));
+        await refreshKbPage();
       }
     } catch (error: unknown) {
       setError(getErrorMessage(error, 'Failed to delete knowledge base entry.'));
@@ -707,9 +704,7 @@ export default function AdminPage() {
       const res = await api.patch(`/knowledge-base/${id}`, { isActive: !currentIsActive });
       if (res.data?.status === 'success') {
         setSuccessMsg(`Entry has been ${!currentIsActive ? 'activated' : 'deactivated'}.`);
-        setKbList((prev) =>
-          prev.map((item) => (item.id === id ? { ...item, isActive: !currentIsActive } : item))
-        );
+        await refreshKbPage();
       }
     } catch (error: unknown) {
       setError(getErrorMessage(error, 'Failed to update entry status.'));
@@ -735,9 +730,9 @@ export default function AdminPage() {
       setKbAnswer('');
       setKbCategory('');
       setKbTags('');
-      setKbSourceTitle('Philippine Institute of Traditional and Alternative Health Care');
-      setKbSourcePublisher('PITAHC / Department of Health Philippines');
-      setKbSourceUrl('https://pitahc.gov.ph');
+      setKbSourceTitle('');
+      setKbSourcePublisher('');
+      setKbSourceUrl('');
     }
     setIsKbModalOpen(true);
   };
@@ -774,16 +769,7 @@ export default function AdminPage() {
   };
 
   const getKbPrimarySource = (item: KBItem) => {
-    const sources = item.metadata?.['sources'];
-    if (Array.isArray(sources) && sources[0] && typeof sources[0] === 'object') {
-      const s = sources[0] as Record<string, unknown>;
-      return {
-        title: typeof s.title === 'string' ? s.title : '',
-        publisher: typeof s.publisher === 'string' ? s.publisher : '',
-        url: typeof s.url === 'string' ? s.url : '',
-      };
-    }
-    return null;
+    return getKnowledgePrimarySource(item.metadata);
   };
 
   const handleLogout = async () => {
@@ -1356,6 +1342,7 @@ export default function AdminPage() {
                   <input
                     type="text"
                     placeholder="Search herbs..."
+                    aria-label="Search herbs"
                     value={librarySearch}
                     onChange={(e) => { setLibrarySearch(e.target.value); setHerbsPage(1); }}
                     className="w-full rounded-lg border border-input bg-panel py-2 pl-9 pr-4 text-sm text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -1538,7 +1525,8 @@ export default function AdminPage() {
                       type="text"
                       placeholder="Search KB items..."
                       value={kbSearch}
-                      onChange={(e) => { setKbSearch(e.target.value); setKbPage(1); }}
+                      onChange={(e) => { setKbSearch(e.target.value); setKbPage(1); setKbLoading(true); }}
+                      aria-label="Search knowledge base facts"
                       className="w-full rounded-xl border border-input bg-panel py-2 pl-9 pr-4 text-xs font-semibold text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     />
                   </div>
@@ -1565,7 +1553,8 @@ export default function AdminPage() {
                       <button
                         key={status}
                         type="button"
-                        onClick={() => setKbStatusFilter(status)}
+                        onClick={() => { if (status !== kbStatusFilter) { setKbStatusFilter(status); setKbPage(1); setKbLoading(true); } }}
+                        aria-pressed={kbStatusFilter === status}
                         className={`rounded-md px-2.5 py-1 text-xs font-bold transition cursor-pointer ${
                           kbStatusFilter === status
                             ? 'bg-[#606c38] text-white shadow-sm'
@@ -1583,7 +1572,7 @@ export default function AdminPage() {
                       <select
                         aria-label="Filter by Category"
                         value={kbCategoryFilter}
-                        onChange={(e) => setKbCategoryFilter(e.target.value)}
+                        onChange={(e) => { setKbCategoryFilter(e.target.value); setKbPage(1); setKbLoading(true); }}
                         className="rounded-lg border border-line bg-panel px-3 py-1.5 text-xs font-bold text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer"
                       >
                         <option value="ALL">All Categories ({availableKbCategories.length})</option>
@@ -1603,6 +1592,8 @@ export default function AdminPage() {
                         setKbCategoryFilter('ALL');
                         setKbStatusFilter('ALL');
                         setKbSearch('');
+                        setKbPage(1);
+                        setKbLoading(true);
                       }}
                       className="text-xs font-bold text-accent hover:underline ml-1 cursor-pointer"
                     >
@@ -1664,7 +1655,9 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              {filteredKbList.length === 0 ? (
+              {kbLoading ? (
+                <p role="status" className="py-8 text-center text-sm text-muted">Loading knowledge base facts…</p>
+              ) : filteredKbList.length === 0 ? (
                 <div className="rounded-2xl border border-line bg-panel p-12 text-center shadow-sm">
                   <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-soft text-muted">
                     <BookOpen className="h-6 w-6 stroke-[1.5]" />
@@ -1680,6 +1673,8 @@ export default function AdminPage() {
                         setKbSearch('');
                         setKbCategoryFilter('ALL');
                         setKbStatusFilter('ALL');
+                        setKbPage(1);
+                        setKbLoading(true);
                       }}
                       className="mt-4 inline-flex items-center gap-1.5 rounded-lg border border-line bg-panel px-3 py-1.5 text-xs font-bold text-accent hover:bg-soft cursor-pointer"
                     >
@@ -1841,6 +1836,11 @@ export default function AdminPage() {
                               )}
                             </div>
                           )}
+                          {primarySource?.unavailable && (
+                            <p className="mt-2 w-full text-xs text-muted whitespace-pre-wrap break-words">
+                              {primarySource.availabilityNote}
+                            </p>
+                          )}
                         </div>
                       </div>
                     );
@@ -1850,8 +1850,8 @@ export default function AdminPage() {
               <div className="mt-4 flex items-center justify-between text-sm text-ink">
                 <span>Page {kbPage} of {Math.max(1, Math.ceil(kbTotal / 25))}</span>
                 <div className="flex gap-2">
-                  <button type="button" disabled={kbPage === 1} onClick={() => setKbPage((page) => page - 1)} className="rounded-lg border px-3 py-1.5 disabled:opacity-40">Previous</button>
-                  <button type="button" disabled={kbPage * 25 >= kbTotal} onClick={() => setKbPage((page) => page + 1)} className="rounded-lg border px-3 py-1.5 disabled:opacity-40">Next</button>
+                  <button type="button" disabled={kbLoading || kbPage === 1} onClick={() => { setKbPage((page) => page - 1); setKbLoading(true); }} className="rounded-lg border px-3 py-1.5 disabled:opacity-40">Previous</button>
+                  <button type="button" disabled={kbLoading || kbPage * 25 >= kbTotal} onClick={() => { setKbPage((page) => page + 1); setKbLoading(true); }} className="rounded-lg border px-3 py-1.5 disabled:opacity-40">Next</button>
                 </div>
               </div>
             </div>
@@ -1875,6 +1875,7 @@ export default function AdminPage() {
                   <input
                     type="text"
                     placeholder="Filter audit logs..."
+                    aria-label="Filter audit logs"
                     value={auditSearch}
                     onChange={(e) => setAuditSearch(e.target.value)}
                     className="w-full rounded-xl border border-input bg-panel py-2 pl-9 pr-4 text-sm font-semibold text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"

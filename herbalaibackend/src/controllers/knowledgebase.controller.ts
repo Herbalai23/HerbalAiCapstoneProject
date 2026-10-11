@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 import type { AuthenticatedRequest } from "../middlewares/auth.middleware.js";
 import { findKBPage } from "../repositories/knowledgebase.repository.js";
+import { knowledgePageFiltersSchema } from "../schema/ai/knowledge.schema.js";
 import {  
   CreateKnowledgeBaseService, 
   UpdateKnowledgeBaseService, 
@@ -23,7 +24,12 @@ export class KnowledgeBaseController {
       const page = Number.isInteger(requestedPage) && requestedPage > 0 ? Math.min(requestedPage, 10_000) : 1;
       const limit = Number.isInteger(requestedLimit) && requestedLimit > 0 ? Math.min(requestedLimit, 50) : 25;
       const search = typeof req.query['search'] === 'string' ? req.query['search'].trim().slice(0, 100) : '';
-      const result = await findKBPage(page, limit, search);
+      const filters = knowledgePageFiltersSchema.safeParse(req.query);
+      if (!filters.success) {
+        res.status(400).json({ status: 'error', message: 'Invalid knowledge-base filters.' });
+        return;
+      }
+      const result = await findKBPage(page, limit, search, filters.data);
       res.status(200).json({ status: 'success', data: result });
     } catch (error) {
       next(error);

@@ -2,7 +2,10 @@ import { expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({ findMany: vi.fn(), count: vi.fn() }));
 vi.mock('../src/lib/prisma.js', () => ({
-  prisma: { knowledgeBase: { findMany: mocks.findMany, count: mocks.count } },
+  prisma: {
+    knowledgeBase: { findMany: mocks.findMany, count: mocks.count },
+    $transaction: async (operation: (transaction: unknown) => Promise<unknown>) => operation({ knowledgeBase: { findMany: mocks.findMany, count: mocks.count } }),
+  },
 }));
 
 import { findAllKB, findKBPage, MAX_UNPAGED_KB_RECORDS } from '../src/repositories/knowledgebase.repository.js';

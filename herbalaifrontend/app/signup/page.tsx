@@ -1,5 +1,7 @@
 'use client';
 
+import { registrationNameError } from '../../lib/registration-name';
+
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -47,13 +49,9 @@ export default function SignUpPage() {
     setResendMessage(null);
 
     // Validate fields locally
-    if (!firstName.trim()) {
-      setError('First name is required.');
-      return;
-    }
-
-    if (!lastName.trim()) {
-      setError('Last name is required.');
+    const nameError = registrationNameError(firstName, 'First name') || registrationNameError(lastName, 'Last name');
+    if (nameError) {
+      setError(nameError);
       return;
     }
 
@@ -71,7 +69,8 @@ export default function SignUpPage() {
 
     try {
       const result = await signup({
-        name: `${firstName} ${lastName}`.trim(),
+        firstName: firstName.trim().normalize('NFC'),
+        lastName: lastName.trim().normalize('NFC'),
         username,
         email,
         password,
@@ -164,9 +163,14 @@ export default function SignUpPage() {
                   id="firstName"
                   type="text"
                   required
+                  minLength={5}
+                  maxLength={50}
+                  pattern="(?:\p{L}\p{M}*)+"
+                  title="At least 5 letters; no numbers or punctuation"
+                  autoComplete="given-name"
                   placeholder="Maria"
                   value={firstName}
-                  onChange={(e) => setFirstName(e.target.value)}
+                  onChange={(e) => { if (/^[\p{L}\p{M}]*$/u.test(e.target.value)) setFirstName(e.target.value); }}
                   className="w-full border border-black/10 dark:border-line bg-white/70 dark:bg-soft rounded-2xl px-4 py-2.5 text-sm text-[#1b4332] dark:text-ink focus:outline-none focus:ring-2 focus:ring-[#40916c]"
                 />
               </div>
@@ -178,9 +182,14 @@ export default function SignUpPage() {
                   id="lastName"
                   type="text"
                   required
+                  minLength={5}
+                  maxLength={50}
+                  pattern="(?:\p{L}\p{M}*)+"
+                  title="At least 5 letters; no numbers or punctuation"
+                  autoComplete="family-name"
                   placeholder="Santos"
                   value={lastName}
-                  onChange={(e) => setLastName(e.target.value)}
+                  onChange={(e) => { if (/^[\p{L}\p{M}]*$/u.test(e.target.value)) setLastName(e.target.value); }}
                   className="w-full border border-black/10 dark:border-line bg-white/70 dark:bg-soft rounded-2xl px-4 py-2.5 text-sm text-[#1b4332] dark:text-ink focus:outline-none focus:ring-2 focus:ring-[#40916c]"
                 />
               </div>

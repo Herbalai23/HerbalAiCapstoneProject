@@ -15,9 +15,11 @@ export interface User {
   role: string;
   joined: string;
   isBanned?: boolean;
+  hasLocalPassword?: boolean | null;
+  passwordStatus?: 'set' | 'unset' | 'unknown';
 }
 
-type SignupData = { name: string; username: string; email: string; password: string };
+type SignupData = { name?: string; firstName?: string; lastName?: string; username: string; email: string; password: string };
 type SignupResult = { message: string; verificationRequired: boolean; verificationEmailSent: boolean };
 
 interface AuthContextType {

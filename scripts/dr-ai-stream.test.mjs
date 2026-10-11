@@ -39,6 +39,7 @@ const harness = fetcher => {
   );
   return {
     requests, refreshes, events, timers, CreditError: exports.DrAiCreditError,
+    RequestError: exports.DrAiRequestError, failureFeedback: exports.drAiFailureFeedback,
     run: options => exports.streamDrAiResponse('TEST ONLY question', [], value => events.push(value), options),
     refresh: callback => { refresh = callback; },
     fire: delay => {
@@ -280,7 +281,40 @@ const findCallbacks = node => {
   ts.forEachChild(node, findCallbacks);
 };
 findCallbacks(pageSyntax);
-const pageCreditError = harness(async () => {}).CreditError;
+const pageTransport = harness(async () => {});
+const pageCreditError = pageTransport.CreditError;
+
+for (const creditStatus of ['not_reserved', 'released', 'recovery_pending']) {
+  test(`SSE failure preserves credit recovery status ${creditStatus}`, async () => {
+    const fixture = harness(async () => new Response(event('error', {
+      message: 'TEST ONLY failure', code: 'AI_UNAVAILABLE', retryable: false, creditStatus,
+    })));
+    await assert.rejects(fixture.run(), error => {
+      assert.ok(error instanceof fixture.RequestError);
+      assert.equal(error.creditStatus, creditStatus);
+      assert.equal(error.retryable, false);
+      assert.equal(error.code, 'AI_UNAVAILABLE');
+      return true;
+    });
+    assert.equal(fixture.timers.size, 0);
+  });
+}
+
+test('HTTP provider errors retain the same structured recovery contract', async () => {
+  const fixture = harness(async () => new Response(JSON.stringify({
+    message: 'TEST ONLY recovery', code: 'AI_UNAVAILABLE', retryable: false, creditStatus: 'recovery_pending',
+  }), { status: 503 }));
+  await assert.rejects(fixture.run(), error => error instanceof fixture.RequestError && error.creditStatus === 'recovery_pending' && error.retryable === false);
+});
+
+test('recovery-pending and transport failures never promise a confirmed refund', () => {
+  const pending = new pageTransport.RequestError({ creditStatus: 'recovery_pending', retryable: false }, 'TEST ONLY pending');
+  assert.match(pageTransport.failureFeedback(pending), /Credit recovery is pending/);
+  assert.doesNotMatch(pageTransport.failureFeedback(pending), /no credits were deducted|was returned|try again later/i);
+  assert.match(pageTransport.failureFeedback(new Error('TEST ONLY disconnect')), /Credit status could not be confirmed/);
+  assert.match(pageTransport.failureFeedback(new pageTransport.RequestError({ creditStatus: 'released', retryable: true }, 'TEST')), /reserved credit was returned/);
+  assert.match(pageTransport.failureFeedback(new pageTransport.RequestError({ creditStatus: 'not_reserved' }, 'TEST')), /No credit was reserved/);
+});
 const pageHarness = stream => {
   let messages = [{ id: 'welcome', role: 'model', text: 'TEST ONLY welcome' }];
   let input = 'TEST ONLY question';
@@ -298,6 +332,7 @@ const pageHarness = stream => {
     setChatError: value => { updates += 1; error = value; },
     setCreditRevision: value => { updates += 1; creditRevision = value(creditRevision); },
     DrAiCreditError: pageCreditError,
+    drAiFailureFeedback: pageTransport.failureFeedback,
     streamDrAiResponse: stream,
   };
   const compile = text => {

@@ -22,6 +22,8 @@ for (const surface of ['signin', 'signup', 'verify-email']) {
 }
 const feedback = {};
 new Function('exports', compile(await readSource('herbalaifrontend/lib/request-feedback.ts')))(feedback);
+const registrationNames = {};
+new Function('exports', compile(await readSource('herbalaifrontend/lib/registration-name.ts')))(registrationNames);
 const contextText = await readSource('herbalaifrontend/context/AuthContext.tsx');
 const contextTree = ts.createSourceFile('AuthContext.tsx', contextText, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
 let signupDeclaration;
@@ -43,7 +45,7 @@ const find = (element, predicate) => {
 };
 const fixture = (surface, operation, token = 'TEST-only-verification-token') => {
   const state = surface === 'signin' ? ['TEST-user', 'TEST-password', null, false]
-    : surface === 'signup' ? ['TEST', 'User', 'test_user', 'test@example.invalid', 'TEST-password', false, null, false, null, false, false, false, false, null]
+    : surface === 'signup' ? ['Maria', 'Santos', 'test_user', 'test@example.invalid', 'TEST-password', false, null, false, null, false, false, false, false, null]
     : surface === 'resend' ? ['test@example.invalid', false, null] : [];
   let cursor = 0;
   let refCursor = 0;
@@ -81,6 +83,7 @@ const fixture = (surface, operation, token = 'TEST-only-verification-token') => 
     if (name === '../../context/AuthContext') return { useAuth: () => ({ login: request, signup }) };
     if (name === '../../lib/axios') return { __esModule: true, default: api };
     if (name === '../../lib/request-feedback') return feedback;
+    if (name === '../../lib/registration-name') return registrationNames;
     if (name === '../../lib/auth-redirect') return { safeAuthCallback: () => null };
     return requireFrontend(name);
   };
@@ -102,6 +105,38 @@ const fixture = (surface, operation, token = 'TEST-only-verification-token') => 
   };
 };
 const signupResponse = message => ({ data: { message, data: { verificationRequired: true, verificationEmailSent: false } } });
+
+test('signup sends separately validated NFC first and last names', async () => {
+  const instance = fixture('signup', async () => signupResponse('TEST ONLY sent'));
+  instance.state[0] = ' Mari\u0301a ';
+  instance.state[1] = 'Santos';
+  await instance.submit();
+  assert.deepEqual(instance.requests[0][1], {
+    firstName: 'María', lastName: 'Santos', username: 'test_user', email: 'test@example.invalid', password: 'TEST-password',
+  });
+});
+
+for (const name of ['', 'Ana', 'Maria5', 'Maria-Jane', 'Maria Jane']) {
+  test(`invalid signup first name does not call the API: ${JSON.stringify(name)}`, async () => {
+    const instance = fixture('signup', async () => signupResponse('TEST ONLY sent'));
+    instance.state[0] = name;
+    await instance.submit();
+    assert.equal(instance.requests.length, 0);
+    assert.match(instance.markup(), /First name (?:is required|must contain)/);
+  });
+}
+
+test('first and last name inputs reject typed numbers without clearing valid letters', () => {
+  const instance = fixture('signup', async () => signupResponse('TEST ONLY sent'));
+  for (const [id, index] of [['firstName', 0], ['lastName', 1]]) {
+    const input = find(instance.render(), element => element.type === 'input' && element.props.id === id);
+    input.props.onChange({ target: { value: 'Maria7' } });
+    assert.equal(instance.state[index], index === 0 ? 'Maria' : 'Santos');
+    input.props.onChange({ target: { value: 'Émilie' } });
+    assert.equal(instance.state[index], 'Émilie');
+    assert.equal(input.props.minLength, 5);
+  }
+});
 
 for (const surface of ['signin', 'signup', 'verify']) {
   for (const message of [{ detail: 'TEST malformed response' }, 42, true, '   ']) {

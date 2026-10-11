@@ -164,25 +164,40 @@ export const findAllKB = async () => {
   });
 };
 
-export const findKBPage = async (page: number, limit: number, search: string) => {
-  const where = search ? {
+export const findKBPage = async (
+  page: number, limit: number, search: string,
+  filters: { category?: string | undefined; status?: 'ALL' | 'ACTIVE' | 'INACTIVE' } = {},
+) => {
+  const where: Prisma.KnowledgeBaseWhereInput = search ? {
     OR: [
       { question: { contains: search, mode: 'insensitive' as const } },
       { answer: { contains: search, mode: 'insensitive' as const } },
       { category: { contains: search, mode: 'insensitive' as const } },
     ],
   } : {};
-  const [items, total] = await Promise.all([
-    prisma.knowledgeBase.findMany({
+  if (filters.category) where.category = filters.category;
+  if (filters.status === 'ACTIVE' || filters.status === 'INACTIVE') where.isActive = filters.status === 'ACTIVE';
+  return prisma.$transaction(async transaction => {
+    const [total, categoryRecords] = await Promise.all([
+      transaction.knowledgeBase.count({ where }),
+      transaction.knowledgeBase.findMany({
+        where: { category: { not: null } },
+        select: { category: true },
+        distinct: ['category'],
+        orderBy: { category: 'asc' },
+      }),
+    ]);
+    const currentPage = Math.min(page, Math.max(1, Math.ceil(total / limit)));
+    const items = await transaction.knowledgeBase.findMany({
       where,
       select: { id: true, question: true, answer: true, category: true, tags: true, metadata: true, isActive: true, createdAt: true, updatedAt: true },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: limit,
-      skip: (page - 1) * limit,
-    }),
-    prisma.knowledgeBase.count({ where }),
-  ]);
-  return { items, total, page, limit };
+      skip: (currentPage - 1) * limit,
+    });
+    const categories = categoryRecords.map(record => record.category!).filter(category => category.trim());
+    return { items, total, page: currentPage, limit, categories };
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead, timeout: 15_000 });
 };
 
 /**

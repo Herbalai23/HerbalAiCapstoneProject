@@ -1,5 +1,10 @@
 import { z } from "zod";
 
+export const knowledgePageFiltersSchema = z.object({
+  category: z.string().trim().max(100).optional(),
+  status: z.enum(['ALL', 'ACTIVE', 'INACTIVE']).default('ALL'),
+});
+
 export const createKnowledgeSchema = z.object({
   body: z.object({
     question: z.string().min(5, "Question must be at least 5 characters"),

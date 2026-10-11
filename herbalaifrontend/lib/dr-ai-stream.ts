@@ -19,6 +19,35 @@ type StreamEvent =
 const API_URL = '/api';
 export class DrAiCreditError extends Error {}
 
+export class DrAiRequestError extends Error {
+  readonly code?: string;
+  readonly creditStatus: 'not_reserved' | 'released' | 'recovery_pending' | 'unknown';
+  readonly retryable: boolean | null;
+
+  constructor(data: Record<string, unknown>, fallback: string) {
+    super(typeof data.message === 'string' ? data.message : fallback);
+    this.name = 'DrAiRequestError';
+    this.code = typeof data.code === 'string' ? data.code : undefined;
+    this.creditStatus = ['not_reserved', 'released', 'recovery_pending'].includes(String(data.creditStatus))
+      ? data.creditStatus as 'not_reserved' | 'released' | 'recovery_pending' : 'unknown';
+    this.retryable = typeof data.retryable === 'boolean' ? data.retryable : null;
+  }
+}
+
+export const drAiFailureFeedback = (error: unknown): string => {
+  if (error instanceof DrAiCreditError) return error.message;
+  const restored = 'Dr. Ai could not complete the answer. Your draft was restored.';
+  if (!(error instanceof DrAiRequestError) || error.creditStatus === 'unknown') {
+    return `${restored} Credit status could not be confirmed. Check Credits before trying again.`;
+  }
+  if (error.creditStatus === 'recovery_pending') {
+    return `${restored} Credit recovery is pending. Check Credits and wait for recovery before retrying.`;
+  }
+  const creditNote = error.creditStatus === 'released' ? 'Your reserved credit was returned.' : 'No credit was reserved for this request.';
+  const nextStep = error.retryable === true ? 'Please try again later.' : 'Review your question and Credits before making another request.';
+  return `${restored} ${creditNote} ${nextStep}`;
+};
+
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null;
 const validSources = (value: unknown): value is DrAiStreamSource[] => Array.isArray(value) && value.every(source =>
   isRecord(source) && (source.type === 'herb' || source.type === 'kb') && typeof source.title === 'string' &&
@@ -73,7 +102,7 @@ export const streamDrAiResponse = async (
         if (response.status === 402) throw new DrAiCreditError('You have no Dr. Ai test credits remaining. Open Credits to check your balance.');
         const body: unknown = await response.json().catch(() => null);
         controller.signal.throwIfAborted();
-        throw new Error(isRecord(body) && typeof body.message === 'string' ? body.message : `Dr. Ai request failed with HTTP ${response.status}.`);
+        throw new DrAiRequestError(isRecord(body) ? body : {}, `Dr. Ai request failed with HTTP ${response.status}.`);
       }
       if (!response.body) throw new Error('Dr. Ai returned an empty response stream.');
 
@@ -91,7 +120,7 @@ export const streamDrAiResponse = async (
         if (!dataText) throw new Error('Dr. Ai returned an invalid stream event.');
         const data: unknown = JSON.parse(dataText);
         if (!isRecord(data)) throw new Error('Dr. Ai returned an invalid stream event.');
-        if (event === 'error') throw new Error(typeof data.message === 'string' ? data.message : 'Dr. Ai streaming failed.');
+        if (event === 'error') throw new DrAiRequestError(data, 'Dr. Ai streaming failed.');
         if (event === 'sources' && validSources(data.sources)) {
           onEvent({ event, data: { sources: data.sources } });
           return;
