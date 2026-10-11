@@ -38,28 +38,33 @@ export default function Footer({ showHeroPhotoCredit = false }: { showHeroPhotoC
             </p>
           </div>
 
-          <nav aria-label="Footer quick links">
+          <nav aria-label="Footer quick links" className="border-t border-line/60 pt-6 sm:border-t-0 sm:pt-0">
             <h2 className="mb-3 text-xs font-bold uppercase tracking-[.14em] text-ink">Quick links</h2>
-            <ul>
+            <ul className="grid grid-cols-2 gap-x-4 gap-y-1 sm:block sm:space-y-0.5">
               {quickLinks.map(({ label, href }) => (
                 <li key={href}>
-                  <Link href={href} prefetch={false} className={linkStyle}>{label}</Link>
+                  <Link href={href} prefetch={false} className={`${linkStyle} w-full`}>{label}</Link>
                 </li>
               ))}
             </ul>
           </nav>
 
-          <nav aria-label="Plant reference websites">
+          <nav aria-label="Plant reference websites" className="border-t border-line/60 pt-6 sm:border-t-0 sm:pt-0">
             <h2 className="mb-3 text-xs font-bold uppercase tracking-[.14em] text-ink">Sources &amp; references</h2>
-            <ul className="space-y-1">
+            <ul className="grid grid-cols-1 gap-2">
               {referenceLinks.map(({ label, detail, href }) => (
                 <li key={href}>
-                  <a href={href} target="_blank" rel="noopener noreferrer" className={`${linkStyle} group w-full gap-3 py-2`}>
+                  <a
+                    href={href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="group flex items-center justify-between gap-3 rounded-xl border border-line bg-soft/40 px-3.5 py-2.5 transition-all hover:bg-soft hover:border-line-strong focus-visible:outline-2 focus-visible:outline-brand"
+                  >
                     <span className="min-w-0">
-                      <span className="block font-semibold text-ink">{label}</span>
-                      <span className="mt-0.5 block text-xs leading-5">{detail}</span>
+                      <span className="block text-sm font-semibold text-ink group-hover:text-accent transition-colors">{label}</span>
+                      <span className="block text-xs text-muted leading-tight mt-0.5">{detail}</span>
                     </span>
-                    <ArrowUpRight aria-hidden="true" className="ml-auto h-4 w-4 shrink-0 text-muted group-hover:text-ink" />
+                    <ArrowUpRight aria-hidden="true" className="h-4 w-4 shrink-0 text-muted group-hover:text-ink transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
                     <span className="sr-only"> (opens in a new tab)</span>
                   </a>
                 </li>

@@ -29,8 +29,15 @@ app.use((_req: Request, res: Response, next: NextFunction) => {
 
 // --- Core Middleware ---
 getCreditsConfig();
+const localOrigins = [ENV.FRONTEND_URL, 'http://localhost:3000', 'http://localhost:3001', 'http://127.0.0.1:3000', 'http://127.0.0.1:3001'];
 app.use(cors({
-  origin: ENV.FRONTEND_URL,
+  origin: (origin, callback) => {
+    if (!origin || localOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(null, false);
+    }
+  },
   credentials: true
 }));
 

@@ -242,7 +242,8 @@ export default function Navbar() {
             <div className="mb-3 rounded-xl border border-line bg-panel px-4 py-2.5">
               <ThemeToggle variant="row" />
             </div>
-            <div className="grid grid-cols-2 gap-2">
+
+            <div className="grid grid-cols-2 gap-2" role="navigation" aria-label="Mobile site navigation">
               {allLinks.map((link) => {
                 const isActive = pathname === link.href;
                 return (
@@ -250,13 +251,13 @@ export default function Navbar() {
                     key={link.href}
                     href={link.href}
                     onClick={() => setIsMobileMenuOpen(false)}
-                    className={`rounded-xl px-3 py-2.5 text-center text-sm font-extrabold transition-all ${
+                    className={`rounded-xl px-4 py-2.5 text-left text-sm font-extrabold transition-all flex items-center ${
                       isActive
                         ? 'bg-[#eef5f0] text-[#1b4332] ring-1 ring-[#2d6a4f]/20 dark:bg-soft dark:text-ink'
                         : 'text-[#2d6a4f] hover:bg-[#eef5f0] dark:text-muted dark:hover:bg-soft'
                     }`}
                   >
-                    {link.name}
+                    <span>{link.name}</span>
                   </Link>
                 );
               })}
@@ -276,7 +277,7 @@ export default function Navbar() {
                       setIsProfileEditorOpen(true);
                     }}
                     aria-label="Account settings"
-                    className="flex w-full items-center gap-3 rounded-xl bg-white/60 px-3 py-2.5 text-left text-sm font-extrabold text-[#1b4332] dark:bg-soft dark:text-ink"
+                    className="flex w-full items-center gap-3 rounded-xl bg-white/60 px-4 py-2.5 text-left text-sm font-extrabold text-[#1b4332] dark:bg-soft dark:text-ink cursor-pointer"
                   >
                     <UserRound size={18} aria-hidden="true" className="shrink-0 text-[#40916c]" />
                     <span className="min-w-0">
@@ -312,14 +313,14 @@ export default function Navbar() {
                       setIsMobileMenuOpen(false);
                       handleLogout();
                     }}
-                    className="flex w-full items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-sm font-extrabold text-[#b34f35] transition-colors hover:bg-[#b34f35]/10 dark:text-[#e58a70]"
+                    className="flex w-full items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-sm font-extrabold text-[#b34f35] transition-colors hover:bg-[#b34f35]/10 dark:text-[#e58a70] cursor-pointer"
                   >
                     <LogOut size={16} aria-hidden="true" />
                     Log Out
                   </button>
                 </>
               ) : (
-                <div className="flex flex-col gap-2 px-2 pt-1">
+                <div className="grid grid-cols-2 gap-2 pt-1">
                   <Button asChild variant="outline" className="w-full"><Link href="/signin" onClick={() => setIsMobileMenuOpen(false)}>Sign In</Link></Button>
                   <Button asChild className="w-full"><Link href="/signup" onClick={() => setIsMobileMenuOpen(false)}>Get Started</Link></Button>
                 </div>

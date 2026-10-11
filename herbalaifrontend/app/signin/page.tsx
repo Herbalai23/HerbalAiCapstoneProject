@@ -56,7 +56,7 @@ export default function SignInPage() {
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-3.5">
+          <form onSubmit={handleSubmit} method="post" className="space-y-3.5">
             <div>
               <label className="block text-sm font-extrabold text-[#1b4332] dark:text-ink mb-2" htmlFor="identifier">
                 Email or username
@@ -81,7 +81,7 @@ export default function SignInPage() {
                 <label className="text-sm font-extrabold text-[#1b4332] dark:text-ink" htmlFor="password">
                   Password
                 </label>
-                <Link href="/forgot-password" className="text-xs font-bold text-[#2d6a4f] dark:text-[#74c69d] hover:underline">
+                <Link href="/forgot-password" tabIndex={1} className="text-xs font-bold text-[#2d6a4f] dark:text-[#74c69d] hover:underline">
                   Forgot Password?
                 </Link>
               </div>

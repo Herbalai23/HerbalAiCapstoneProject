@@ -226,22 +226,31 @@ export default function AboutPage() {
                         </p>
                       </div>
 
-                      {/* Plant graphic */}
-                      <div className="relative h-20 w-20 bg-soft rounded-2xl flex items-center justify-center border border-line overflow-hidden shrink-0">
-                        {activeHerb.image ? (
-                          <OptimizedFillImage
-                            src={activeHerb.image}
-                            alt={activeHerb.name}
-                            sizes="80px"
-                            className="h-full w-full object-cover"
-                            onError={(e) => {
-                              const target = e.target as HTMLImageElement;
-                              target.style.display = 'none';
-                            }}
-                          />
-                        ) : (
-                          <Leaf className="h-8 w-8 text-[#40916c]" />
-                        )}
+                      {/* Plant graphic - Prominent, high visibility */}
+                      <div className="relative h-28 w-28 sm:h-36 sm:w-36 md:h-40 md:w-40 bg-white dark:bg-panel rounded-2xl flex items-center justify-center border border-line shadow-sm overflow-hidden shrink-0">
+                        {(() => {
+                          const displayHerbImage = activeHerb.name.toLowerCase() === 'bayabas'
+                            ? '/images/bayabas.png'
+                            : activeHerb.name.toLowerCase() === 'sambong'
+                            ? '/images/sambong.png'
+                            : activeHerb.name.toLowerCase() === 'lagundi'
+                            ? '/images/lagundi.png'
+                            : activeHerb.image;
+                          return displayHerbImage ? (
+                            <OptimizedFillImage
+                              src={displayHerbImage}
+                              alt={`${activeHerb.name} (${activeHerb.scientificName})`}
+                              sizes="(max-width: 640px) 112px, (max-width: 768px) 144px, 160px"
+                              className={`h-full w-full ${displayHerbImage.endsWith('.png') ? 'object-contain p-2' : 'object-cover'}`}
+                              onError={(e) => {
+                                const target = e.target as HTMLImageElement;
+                                target.style.display = 'none';
+                              }}
+                            />
+                          ) : (
+                            <Leaf className="h-10 w-10 text-[#40916c]" />
+                          );
+                        })()}
                       </div>
                     </div>
 
@@ -339,10 +348,10 @@ export default function AboutPage() {
 
             <div className="md:col-span-5 relative rounded-2xl overflow-hidden shadow-md aspect-video md:aspect-square bg-white border border-black/5">
               <OptimizedFillImage
-                src="/images/lagundi.png"
-                alt="Lagundi leaves documented in the Herbal-Ai medicinal-plant library"
+                src="/images/capstone-academic-research.jpg"
+                alt="Philippine ethnobotany research, botanical field notes, herbarium specimens, and laboratory study desk"
                 sizes="(max-width: 768px) 100vw, 42vw"
-                className="w-full h-full object-cover opacity-90"
+                className="w-full h-full object-cover"
               />
             </div>
           </section>
