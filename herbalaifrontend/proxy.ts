@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 export function proxy(request: NextRequest) {
-  const { pathname } = request.nextUrl;
+  const { pathname, search } = request.nextUrl;
 
   const protectedPaths = ['/chat', '/community/new', '/suggest', '/admin', '/messenger'];
   const isProtected = protectedPaths.some((path) => pathname.startsWith(path));
@@ -13,7 +13,7 @@ export function proxy(request: NextRequest) {
 
     if (!refreshToken && !accessToken) {
       const signInUrl = new URL('/signin', request.url);
-      signInUrl.searchParams.set('callbackUrl', pathname);
+      signInUrl.searchParams.set('callbackUrl', `${pathname}${search}`);
       return NextResponse.redirect(signInUrl);
     }
   }

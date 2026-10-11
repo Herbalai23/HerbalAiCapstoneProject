@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '../../context/AuthContext';
 import AuthBrandPanel from '../../components/AuthBrandPanel';
@@ -11,7 +10,6 @@ import { requestError } from '../../lib/request-feedback';
 
 export default function SignInPage() {
   const { login } = useAuth();
-  const router = useRouter();
   
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
@@ -28,7 +26,7 @@ export default function SignInPage() {
       const loggedInUser = await login(identifier, password);
       const callbackUrl = new URLSearchParams(window.location.search).get('callbackUrl');
       const safeCallback = safeAuthCallback(callbackUrl);
-      router.push(safeCallback || (loggedInUser?.role === 'admin' ? '/admin' : '/'));
+      window.location.replace(safeCallback || (loggedInUser?.role === 'admin' ? '/admin' : '/'));
     } catch (err: unknown) {
       const response = (err as { response?: unknown } | null)?.response;
       setError(requestError(err, response

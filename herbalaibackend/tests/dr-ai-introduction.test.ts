@@ -11,10 +11,14 @@ import { askDrAi, streamDrAi } from '../src/services/chat.service.js';
 
 const introductions = ['hi', 'hey?', 'Hello!', '  HI!!  ', 'hello Dr. Ai', 'Hey there', 'good morning', 'kumusta', 'Who are you?', 'What can you do?', 'Introduce yourself.', 'What is your name?',
   'Hello Dr. Ai, what can you help me with?', 'Hi, what can you do?', 'Hey there! Who are you?', 'Good morning, introduce yourself.',
-  'Hello Herbal-Ai, tell me about yourself.', 'What can you help me with?', 'How can you help me?', '  HELLO   DR. AI,  WHAT CAN YOU HELP ME WITH?!  ', 'Hi what is your name?'];
+  'Hello Herbal-Ai, tell me about yourself.', 'What can you help me with?', 'How can you help me?', '  HELLO   DR. AI,  WHAT CAN YOU HELP ME WITH?!  ', 'Hi what is your name?',
+  'Who are you, and what can you help me with?', 'Who are you and what can you do?',
+  'Introduce yourself; tell me about yourself.', 'Hello! Who are you? What can you do?'];
 const clinicalQuestions = ['Hi, how do I prepare Lagundi?', 'Hey, can Lagundi cure cancer?', 'Who are you recommending this herb for?', 'What can you do for my sick child?', 'Hello, what dose should I give my 4-year-old?', 'Introduce yourself and prescribe a treatment.',
   'Hello Dr. Ai, what can you help me with for my child?', 'Hi, what can you do for cancer?', 'Hi, what can you do? Also give me a dose.',
-  'Hey there! Who are you treating with Lagundi?', 'How can you help me prepare Bayabas?', 'Hello Dr. Ai, prescribe a treatment.', 'Hello! How can you help me with poisoning?', 'Hi there is a problem with my child.'];
+  'Hey there! Who are you treating with Lagundi?', 'How can you help me prepare Bayabas?', 'Hello Dr. Ai, prescribe a treatment.', 'Hello! How can you help me with poisoning?', 'Hi there is a problem with my child.',
+  'Who are you, and what dose should I give my child?', 'Who are you? Prepare Lagundi for me.',
+  'Introduce yourself; prescribe a treatment.', 'Hello! Who are you? What can you do for cancer?'];
 const childHistory: ChatTurn[] = [{ role: 'user', parts: [{ text: 'What Lagundi dose is suitable for a 4-year-old?' }] }];
 
 beforeEach(() => {

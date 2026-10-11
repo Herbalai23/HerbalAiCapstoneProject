@@ -241,7 +241,7 @@ for (const role of ['admin', 'contributor']) {
   test(`successful ${role} sign-in keeps its existing destination`, async () => {
     const instance = fixture('signin', async () => ({ role }));
     const previousWindow = globalThis.window;
-    globalThis.window = { location: { search: '' } };
+    globalThis.window = { location: { search: '', replace: route => instance.routes.push(route) } };
     try { await instance.submit(); } finally { globalThis.window = previousWindow; }
     assert.deepEqual(instance.routes, [role === 'admin' ? '/admin' : '/']);
     assert.equal(instance.state[2], null);

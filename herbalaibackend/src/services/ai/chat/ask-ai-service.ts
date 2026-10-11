@@ -245,7 +245,10 @@ const isIntroductionQuestion = (question: string) => {
   const message = question.normalize('NFKC').trim().replace(/\s+/gu, ' ');
   const hasGreeting = INTRODUCTION_GREETING.test(message);
   const remainder = (hasGreeting ? message.replace(INTRODUCTION_GREETING, '') : message).replace(/^[\s,.!?]+/u, '');
-  return (hasGreeting && !remainder) || INTRODUCTION_QUESTION.test(remainder);
+  const clauses = remainder.split(/[,.!?;]+\s*(?:and\s+)?|\s+and\s+/iu)
+    .map((clause) => clause.trim())
+    .filter(Boolean);
+  return (hasGreeting && !remainder) || (clauses.length > 0 && clauses.every((clause) => INTRODUCTION_QUESTION.test(clause)));
 };
 export const withoutPediatricQuantities = (value: string) => value.split(/(?<=[.!?])\s+(?=[A-Z])|\r?\n/u)
   .map((sentence) => /\b(?:age-based|ages?\s+\d|children?\s+\d|\d+\s*(?:[-–]\s*\d+\s*)?(?:years?|yrs?)\b)/i.test(sentence)
