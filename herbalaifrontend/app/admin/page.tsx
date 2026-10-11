@@ -354,6 +354,7 @@ export default function AdminPage() {
   }, [loading, isAuthenticated, sessionUnavailable, user?.role, router, activeTab, usersPage, herbsPage, debouncedLibrarySearch, kbPage, debouncedKbSearch, refreshSuggestions]);
 
   const handleApprove = async (id: number) => {
+    if (actioningId !== null) return;
     try {
       setActioningId(id);
       setError(null);
@@ -372,6 +373,14 @@ export default function AdminPage() {
         invalidateApiGetCache('/herbs');
         setSuccessMsg(`Herb suggestion approved and added to the library!`);
         await refreshSuggestions();
+        setDashboardStats((prev) => prev ? {
+          ...prev,
+          totalHerbs: prev.totalHerbs + 1,
+          suggestionsByStatus: prev.suggestionsByStatus.map((s) =>
+            s.name === 'Pending' ? { ...s, value: Math.max(0, s.value - 1) } :
+            s.name === 'Approved' ? { ...s, value: s.value + 1 } : s
+          ),
+        } : null);
       }
     } catch (error: unknown) {
       setError(getErrorMessage(error, 'Failed to approve suggestion.'));
@@ -381,6 +390,7 @@ export default function AdminPage() {
   };
 
   const handleRequestChanges = async (id: number) => {
+    if (actioningId !== null) return;
     const reviewNotes = reviewNotesById[id]?.trim();
     if (!reviewNotes || reviewNotes.length < 10) {
       setError('Provide at least 10 characters explaining the required changes.');
@@ -396,6 +406,13 @@ export default function AdminPage() {
       if (res.data?.status === 'success') {
         setSuccessMsg('Changes requested.');
         await refreshSuggestions();
+        setDashboardStats((prev) => prev ? {
+          ...prev,
+          suggestionsByStatus: prev.suggestionsByStatus.map((s) =>
+            s.name === 'Pending' ? { ...s, value: Math.max(0, s.value - 1) } :
+            s.name === 'ChangesRequested' ? { ...s, value: s.value + 1 } : s
+          ),
+        } : null);
       }
     } catch (error: unknown) {
       setError(getErrorMessage(error, 'Failed to request changes.'));
@@ -405,6 +422,7 @@ export default function AdminPage() {
   };
 
   const handleReject = async (id: number) => {
+    if (actioningId !== null) return;
     try {
       setActioningId(id);
       setError(null);
@@ -416,6 +434,13 @@ export default function AdminPage() {
       if (res.data?.status === 'success') {
         setSuccessMsg(`Suggestion has been rejected.`);
         await refreshSuggestions();
+        setDashboardStats((prev) => prev ? {
+          ...prev,
+          suggestionsByStatus: prev.suggestionsByStatus.map((s) =>
+            s.name === 'Pending' ? { ...s, value: Math.max(0, s.value - 1) } :
+            s.name === 'Rejected' ? { ...s, value: s.value + 1 } : s
+          ),
+        } : null);
       }
     } catch (error: unknown) {
       setError(getErrorMessage(error, 'Failed to reject suggestion.'));
@@ -811,20 +836,20 @@ export default function AdminPage() {
 
               {/* Row 2: 2-Column Grid of Navigation Tabs */}
               <div className="grid grid-cols-2 gap-2">
-                {[
+                {([
                   { tab: 'dashboard', label: 'Dashboard' },
                   { tab: 'pending', label: 'Suggestions', badge: pendingCount },
                   { tab: 'library', label: 'All Herbs' },
                   { tab: 'users', label: 'Users' },
                   { tab: 'knowledgebase', label: 'Knowledge Base' },
                   { tab: 'audit', label: 'Audit Logs' },
-                ].map(({ tab, label, badge }) => {
+                ] as Array<{ tab: 'dashboard' | 'pending' | 'library' | 'users' | 'knowledgebase' | 'audit'; label: string; badge?: number }>).map(({ tab, label, badge }) => {
                   const isActive = activeTab === tab;
                   return (
                     <button
                       key={tab}
                       type="button"
-                      onClick={() => { setActiveTab(tab as any); setMobileNavOpen(false); }}
+                      onClick={() => { setActiveTab(tab); setMobileNavOpen(false); }}
                       className={`rounded-xl px-4 py-2.5 text-left text-sm font-extrabold transition-all flex items-center justify-between cursor-pointer ${
                         isActive
                           ? 'bg-[#eef5f0] text-[#1b4332] ring-1 ring-[#2d6a4f]/20 dark:bg-soft dark:text-ink'
@@ -1162,10 +1187,13 @@ export default function AdminPage() {
                           type="button"
                           onClick={() => handleApprove(suggestion.id)}
                           disabled={actioningId !== null}
-                          className="w-full text-xs"
+                          className="w-full min-h-[38px] text-xs flex items-center justify-center gap-1.5"
                         >
                           {actioningId === suggestion.id ? (
-                            <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent inline-block"></span>
+                            <>
+                              <span aria-hidden="true" className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent inline-block shrink-0"></span>
+                              <span>Publishing…</span>
+                            </>
                           ) : (
                             'Approve & Publish'
                           )}
@@ -1175,7 +1203,7 @@ export default function AdminPage() {
                           variant="outline"
                           onClick={() => handleRequestChanges(suggestion.id)}
                           disabled={actioningId !== null}
-                          className="w-full border-warning-ink text-xs text-warning-ink hover:bg-warning-surface"
+                          className="w-full min-h-[38px] border-warning-ink text-xs text-warning-ink hover:bg-warning-surface flex items-center justify-center gap-1.5"
                         >
                           Request Changes
                         </Button>
@@ -1184,7 +1212,7 @@ export default function AdminPage() {
                           variant="outline"
                           onClick={() => handleReject(suggestion.id)}
                           disabled={actioningId !== null}
-                          className="w-full border-error-ink text-xs text-error-ink hover:bg-error-surface"
+                          className="w-full min-h-[38px] border-error-ink text-xs text-error-ink hover:bg-error-surface flex items-center justify-center gap-1.5"
                         >
                           Reject
                         </Button>

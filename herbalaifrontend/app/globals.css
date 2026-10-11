@@ -155,7 +155,6 @@ body {
   .home-hero::after {
     background: linear-gradient(180deg, rgb(10 25 16 / .76), rgb(10 25 16 / .58) 52%, rgb(10 25 16 / .78));
   }
-  .site-nav.home-site-nav { position: relative; }
 }
 
 .operational-page {

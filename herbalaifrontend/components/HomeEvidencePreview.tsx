@@ -2,8 +2,7 @@ import Link from 'next/link';
 import { ArrowRight, ExternalLink } from 'lucide-react';
 import OptimizedFillImage from './OptimizedFillImage';
 import { Button } from './ui/button';
-
-const pitahcDirectoryUrl = 'https://pitahc.gov.ph/herbs-directory/';
+import { PITAHC_OFFICIAL_URL } from '../lib/external-links';
 
 export default function HomeEvidencePreview() {
   return (
@@ -47,7 +46,7 @@ export default function HomeEvidencePreview() {
             <p className="mt-1 text-sm leading-6 text-muted">Plant photo: <a className="inline-flex min-h-11 items-center underline underline-offset-2 hover:text-ink" href="https://www.inaturalist.org/observations/10163763">Greg III Espera</a> · <a className="inline-flex min-h-11 items-center underline underline-offset-2 hover:text-ink" href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a></p>
             <div className="mt-6 flex flex-wrap items-center gap-3">
               <Button asChild><Link href="/library?search=lagundi">Find Lagundi in the library <ArrowRight aria-hidden="true" /></Link></Button>
-              <a href={pitahcDirectoryUrl} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center gap-2 rounded-xl px-3 text-sm font-semibold text-accent underline underline-offset-4 hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">Read the PITAHC source <ExternalLink className="h-4 w-4" aria-hidden="true" /><span className="sr-only">(opens in a new tab)</span></a>
+              <a href={PITAHC_OFFICIAL_URL} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center gap-2 rounded-xl px-3 text-sm font-semibold text-accent underline underline-offset-4 hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">Visit PITAHC official portal <ExternalLink className="h-4 w-4" aria-hidden="true" /><span className="sr-only">(opens in a new tab)</span></a>
             </div>
           </div>
         </div>

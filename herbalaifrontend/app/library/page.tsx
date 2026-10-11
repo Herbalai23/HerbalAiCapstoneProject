@@ -308,7 +308,7 @@ function LibraryContent() {
                   {/* Info Body */}
                   <div className="herb-figma-body p-4 flex-grow flex flex-col justify-between">
                     <div>
-                      <h2 className="font-sans text-lg font-bold tracking-tight text-ink line-clamp-1">
+                      <h2 className="font-sans text-lg font-bold tracking-tight text-ink line-clamp-1 group-hover:text-accent group-hover:underline underline-offset-2 transition-colors">
                         {herb.localName}
                       </h2>
                       <p className="herb-figma-sci text-xs italic text-muted mt-0.5 line-clamp-1">

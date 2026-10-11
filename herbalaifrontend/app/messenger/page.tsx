@@ -137,6 +137,7 @@ function MessengerContent() {
   const activeContactRef = useRef<UserProfile | null>(null);
   const [historyRequests] = useState(() => createHistoryRequests<ChatMessage>());
   const synchronizeRef = useRef<() => Promise<void>>(async () => {});
+  const [liveAnnouncement, setLiveAnnouncement] = useState('');
   const normalizedConversationSearch = searchTerm.trim().slice(0, 100);
   const normalizedUserPickerSearch = userPickerSearch.trim().slice(0, 100);
 
@@ -153,6 +154,10 @@ function MessengerContent() {
       setMessages(current => mergeConversationMessages(current, [message], userId, contactId, allowInsert));
     }
     setConversations(current => updateConversationPreview(current, message, userId));
+    if (allowInsert && message.senderId !== userId) {
+      const senderName = message.sender?.name || 'Someone';
+      setLiveAnnouncement(`New message from ${senderName}: ${message.content || 'Photo attached'}`);
+    }
   }, [user, historyRequests]);
 
   // Redirect if not authenticated
@@ -535,6 +540,9 @@ function MessengerContent() {
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-canvas font-sans text-ink">
       <Navbar />
+      <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+        {liveAnnouncement}
+      </div>
 
       <main className="flex min-h-0 flex-1 flex-col overflow-hidden">
         {/* Page header */}
@@ -835,9 +843,11 @@ function MessengerContent() {
                         <button 
                           type="button"
                           onClick={removeSelectedFile}
-                          className="absolute inset-0 bg-black/40 hover:bg-black/55 flex items-center justify-center text-white transition-colors"
+                          aria-label="Remove attached image"
+                          className="absolute inset-0 bg-black/40 hover:bg-black/55 flex items-center justify-center text-white transition-colors focus-visible:outline-2 focus-visible:outline-brand"
                         >
-                          <X className="h-4 w-4" />
+                          <X className="h-4 w-4" aria-hidden="true" />
+                          <span className="sr-only">Remove attached image</span>
                         </button>
                       </div>
                       <div className="text-left shrink-0">

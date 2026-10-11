@@ -384,7 +384,7 @@ export default function ThreadDetailPage({
                     </span>
                   )}
                 </p>
-                <p className="text-[11px] text-gray-400 dark:text-muted">{formatDate(thread.date)}</p>
+                <time dateTime={thread.date} className="text-[11px] text-gray-400 dark:text-muted block">{formatDate(thread.date)}</time>
               </div>
             </div>
 
@@ -549,7 +549,7 @@ export default function ThreadDetailPage({
                             </span>
                           )}
                           <span className="text-[11px] text-gray-400 dark:text-muted">
-                            • {formatDate(comment.date)}
+                            • <time dateTime={comment.date}>{formatDate(comment.date)}</time>
                           </span>
                         </div>
 

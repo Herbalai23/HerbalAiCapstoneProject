@@ -33,6 +33,8 @@ const load = (source, react, api, passwordComponent, overrides = {}) => {
     if (name === '../context/AuthContext') return { useAuth: () => ({ user, updateProfile: async () => {} }) };
     if (name === './PasswordSettings') return { __esModule: true, default: passwordComponent };
     if (name === '../lib/dialog-focus') return dialogExports;
+    if (name === '../../components/AuthBrandPanel' || name.endsWith('/AuthBrandPanel')) return () => null;
+    if (name === '../../components/DisplayPreferences' || name.endsWith('/DisplayPreferences')) return { ThemeToggle: () => null };
     return requireFrontend(name);
   };
   new Function('require', 'exports', source)(dependency, exports);

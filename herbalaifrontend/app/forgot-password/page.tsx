@@ -39,7 +39,7 @@ export default function ForgotPasswordPage() {
         <ThemeToggle className="auth-theme-toggle" />
         <div className="auth-form-card glass-card">
           <p className="auth-form-eyebrow">Account recovery</p>
-          <h2 className="text-2xl lg:text-3xl font-extrabold text-[#1b4332] dark:text-ink mb-2">Forgot Your Password?</h2>
+          <h2 className="text-2xl lg:text-3xl font-extrabold text-[#1b4332] dark:text-ink mb-2">Forgot Your Herbal-Ai Password?</h2>
           <p className="text-sm font-semibold text-[#6a7282] dark:text-muted mb-4">
             Enter your account email to request a link to create or reset your Herbal-Ai password.
           </p>

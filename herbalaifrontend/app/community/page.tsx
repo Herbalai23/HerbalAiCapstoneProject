@@ -285,43 +285,37 @@ export default function CommunityPage() {
               /* THREADS LIST */
               <div className="space-y-4">
                 {threads.map((thread) => (
-                  <Link
+                  <article
                     key={thread.id}
-                    href={`/community/${thread.id}`}
-                    className="block glass-card bg-white/50 dark:bg-panel/75 backdrop-blur-md border border-black/10 dark:border-line rounded-3xl p-4 sm:p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all group"
+                    className="relative block glass-card bg-white/50 dark:bg-panel/75 backdrop-blur-md border border-black/10 dark:border-line rounded-3xl p-4 sm:p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all group"
                   >
                     <div className="flex items-start gap-3 sm:gap-4">
                       {/* Avatar */}
-                      <div 
-                        className="h-11 w-11 rounded-full bg-[#eef5f0] dark:bg-soft border border-black/10 dark:border-line text-xs font-bold text-[#1b4332] dark:text-ink flex items-center justify-center shadow-xs cursor-pointer shrink-0 mt-0.5"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          handleUserClick(thread.author);
-                        }}
+                      <button 
+                        type="button"
+                        onClick={() => handleUserClick(thread.author)}
+                        aria-label={`View ${thread.author?.name || 'author'}'s profile`}
+                        className="relative z-10 h-11 w-11 rounded-full bg-[#eef5f0] dark:bg-soft border border-black/10 dark:border-line text-xs font-bold text-[#1b4332] dark:text-ink flex items-center justify-center shadow-xs cursor-pointer shrink-0 mt-0.5 focus-visible:outline-2 focus-visible:outline-brand"
                       >
                         {thread.author?.avatar?.startsWith('http') ? (
-                          <img src={thread.author.avatar} alt="Avatar" className="h-full w-full rounded-full object-cover" />
+                          <img src={thread.author.avatar} alt="" className="h-full w-full rounded-full object-cover" />
                         ) : (
                           <span>{thread.author?.name?.[0]?.toUpperCase() || 'U'}</span>
                         )}
-                      </div>
+                      </button>
 
                       {/* Summary */}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap mb-1">
-                          <span 
-                            className="text-xs font-bold text-[#1b4332] dark:text-ink hover:underline cursor-pointer"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              handleUserClick(thread.author);
-                            }}
+                          <button 
+                            type="button"
+                            onClick={() => handleUserClick(thread.author)}
+                            className="relative z-10 text-xs font-bold text-[#1b4332] dark:text-ink hover:underline cursor-pointer focus-visible:outline-2 focus-visible:outline-brand rounded-xs"
                           >
                             {thread.author?.name}
-                          </span>
+                          </button>
                           <span className="text-xs text-gray-400 dark:text-muted">
-                            • {formatDate(thread.date)}
+                            • <time dateTime={thread.date}>{formatDate(thread.date)}</time>
                           </span>
                           {thread.pinned && (
                             <span className="text-[10px] bg-amber-100 text-amber-900 border border-amber-300 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider inline-flex items-center gap-1">
@@ -335,7 +329,9 @@ export default function CommunityPage() {
                         </div>
 
                         <h3 className="text-base font-bold text-[#1b4332] dark:text-ink group-hover:text-[#40916c] transition-colors line-clamp-2 sm:line-clamp-1 mb-1 font-serif-custom italic [overflow-wrap:anywhere]">
-                          {thread.title}
+                          <Link href={`/community/${thread.id}`} className="after:absolute after:inset-0 focus-visible:outline-2 focus-visible:outline-brand focus-visible:rounded-3xl">
+                            {thread.title}
+                          </Link>
                         </h3>
 
                         <p className="text-gray-600 dark:text-muted text-xs leading-relaxed line-clamp-2">
@@ -359,7 +355,7 @@ export default function CommunityPage() {
                         </div>
                       </div>
                     </div>
-                  </Link>
+                  </article>
                 ))}
                 {totalPages > 1 && (
                   <nav aria-label="Discussion pages" className="flex flex-wrap items-center justify-center gap-3 pt-4 text-sm text-ink">

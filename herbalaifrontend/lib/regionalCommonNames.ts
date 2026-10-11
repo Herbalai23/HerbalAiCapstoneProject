@@ -2781,7 +2781,7 @@ export function getHerbRegionalNames(herb: { localName?: string; scientificName?
   return {
     canonicalLocalName: herb?.localName || 'Herb',
     scientificName: herb?.scientificName || '',
-    english: 'Philippine Herbal Plant',
+    english: '—',
     tagalog: herb?.localName || '',
     cebuano: '—',
     ilocano: '—',

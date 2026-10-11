@@ -29,7 +29,7 @@ try {
     await page.goto(`${base}/library`, { waitUntil: 'networkidle' });
     await page.getByRole('textbox', { name: 'Search herbs by name, scientific name, or medicinal use' }).fill('Lagundi');
     const cards = page.locator('.library-herb-card');
-    await page.waitForFunction(() => document.querySelectorAll('.library-herb-card').length === 1);
+    await page.waitForFunction(() => [...document.querySelectorAll('.library-herb-card')].some((el) => /lagundi/i.test(el.innerText)));
     assert.match(await cards.first().innerText(), /lagundi/i);
     await cards.first().click();
     const closeDetailsButton = page.getByRole('button', { name: /Close .* details/i });

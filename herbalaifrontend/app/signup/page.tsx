@@ -47,6 +47,16 @@ export default function SignUpPage() {
     setResendMessage(null);
 
     // Validate fields locally
+    if (!firstName.trim()) {
+      setError('First name is required.');
+      return;
+    }
+
+    if (!lastName.trim()) {
+      setError('Last name is required.');
+      return;
+    }
+
     if (password.length < 8) {
       setError('Password must be at least 8 characters long.');
       return;

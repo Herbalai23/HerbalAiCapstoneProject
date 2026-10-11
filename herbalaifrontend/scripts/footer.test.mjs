@@ -15,9 +15,15 @@ function loadComponent(filename) {
     compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS, esModuleInterop: true },
   });
   const compiledModule = { exports: {} };
-  const localRequire = name => name === './BrandMark'
-    ? loadComponent(fileURLToPath(new URL('../components/BrandMark.tsx', import.meta.url)))
-    : require(name);
+  const localRequire = name => {
+    if (name === './BrandMark') {
+      return loadComponent(fileURLToPath(new URL('../components/BrandMark.tsx', import.meta.url)));
+    }
+    if (name === '../lib/external-links' || name.endsWith('external-links')) {
+      return loadComponent(fileURLToPath(new URL('../lib/external-links.ts', import.meta.url)));
+    }
+    return require(name);
+  };
   new Function('require', 'module', 'exports', compiled.outputText)(localRequire, compiledModule, compiledModule.exports);
   return compiledModule.exports;
 }

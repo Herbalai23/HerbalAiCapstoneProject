@@ -23,6 +23,19 @@ const loadComponent = async relativePath => {
     if (name === 'next/link') return link;
     if (name === './BrandMark') return () => React.createElement('svg', { 'aria-hidden': true });
     if (name.endsWith('/Navbar') || name.endsWith('/Footer')) return () => null;
+    if (name.includes('external-links')) {
+      return {
+        PITAHC_OFFICIAL_URL: 'https://pitahc.gov.ph/',
+        PITAHC_OFFICIAL_LABEL: 'Official portal',
+        PITAHC_OFFICIAL_NAME: 'Philippine Institute of Traditional and Alternative Health Care',
+        EXTERNAL_LINKS: {
+          pitahc: { label: 'PITAHC', detail: 'Official portal', href: 'https://pitahc.gov.ph/' },
+          tkdl: { label: 'TKDL Philippines', detail: 'Herbarium', href: 'https://www.tkdl.ph/library/herbarium' },
+          kew: { label: 'Kew Science', detail: 'Plants of the World Online', href: 'https://powo.science.kew.org/' },
+          stuart: { label: 'StuartXchange', detail: 'Philippine plant reference', href: 'https://www.stuartxchange.org/CompleteList.html' },
+        },
+      };
+    }
     return requireFrontend(name);
   };
   new Function('exports', 'require', compiled.outputText)(exports, require);

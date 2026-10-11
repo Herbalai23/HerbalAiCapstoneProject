@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../context/AuthContext';
 import Navbar from '../../components/Navbar';
@@ -81,6 +81,34 @@ export default function SuggestHerbPage() {
   const [submissionsError, setSubmissionsError] = useState<string | null>(null);
   const [submissionsRefresh, setSubmissionsRefresh] = useState(0);
   const [editingSubmission, setEditingSubmission] = useState<Submission | null>(null);
+  const [submissionsTab, setSubmissionsTab] = useState<'all' | 'active' | 'history'>('all');
+  const [submissionsPage, setSubmissionsPage] = useState(1);
+  const SUBMISSIONS_PER_PAGE = 5;
+
+  const activeSubmissions = useMemo(
+    () => submissions.filter((s) => s.status === 'Pending' || s.status === 'ChangesRequested'),
+    [submissions]
+  );
+  const historySubmissions = useMemo(
+    () => submissions.filter((s) => s.status === 'Approved' || s.status === 'Rejected'),
+    [submissions]
+  );
+  const displayedSubmissions = useMemo(() => {
+    if (submissionsTab === 'active') return activeSubmissions;
+    if (submissionsTab === 'history') return historySubmissions;
+    return submissions;
+  }, [submissionsTab, activeSubmissions, historySubmissions, submissions]);
+
+  const totalSubmissionPages = Math.max(1, Math.ceil(displayedSubmissions.length / SUBMISSIONS_PER_PAGE));
+  const paginatedSubmissions = useMemo(() => {
+    const start = (submissionsPage - 1) * SUBMISSIONS_PER_PAGE;
+    return displayedSubmissions.slice(start, start + SUBMISSIONS_PER_PAGE);
+  }, [displayedSubmissions, submissionsPage]);
+
+  const handleTabChange = (tab: 'all' | 'active' | 'history') => {
+    setSubmissionsTab(tab);
+    setSubmissionsPage(1);
+  };
 
   // Categories list based on backend expectations and capstone structure
   const categories = [
@@ -343,10 +371,56 @@ export default function SuggestHerbPage() {
                 </span>
               </div>
             </div>
+
+            {/* Filter Controls with truthful counts */}
+            <div className="flex flex-wrap items-center gap-2 mb-4">
+              <button
+                type="button"
+                onClick={() => handleTabChange('all')}
+                className={`rounded-full px-3 py-1 text-xs font-bold transition-all ${
+                  submissionsTab === 'all'
+                    ? 'bg-[#1b4332] text-white dark:bg-accent dark:text-ink'
+                    : 'bg-[#eef5f0] dark:bg-soft text-[#1b4332] dark:text-muted hover:bg-[#eef5f0]/80'
+                }`}
+              >
+                All ({submissions.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => handleTabChange('active')}
+                className={`rounded-full px-3 py-1 text-xs font-bold transition-all ${
+                  submissionsTab === 'active'
+                    ? 'bg-[#1b4332] text-white dark:bg-accent dark:text-ink'
+                    : 'bg-[#eef5f0] dark:bg-soft text-[#1b4332] dark:text-muted hover:bg-[#eef5f0]/80'
+                }`}
+              >
+                Active ({activeSubmissions.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => handleTabChange('history')}
+                className={`rounded-full px-3 py-1 text-xs font-bold transition-all ${
+                  submissionsTab === 'history'
+                    ? 'bg-[#1b4332] text-white dark:bg-accent dark:text-ink'
+                    : 'bg-[#eef5f0] dark:bg-soft text-[#1b4332] dark:text-muted hover:bg-[#eef5f0]/80'
+                }`}
+              >
+                History ({historySubmissions.length})
+              </button>
+            </div>
+
             {submissionsError && <p role="alert" className="mt-3 text-rose-600 font-semibold text-sm">{submissionsError}</p>}
-            {!submissionsError && submissions.length === 0 && <p className="text-sm text-gray-600 dark:text-muted">You have no herb suggestions yet.</p>}
+
+            {!submissionsError && displayedSubmissions.length === 0 && (
+              <div className="rounded-2xl border border-dashed border-black/15 dark:border-line p-6 text-center text-sm text-gray-600 dark:text-muted">
+                {submissions.length === 0 && 'You have no herb suggestions yet.'}
+                {submissions.length > 0 && submissionsTab === 'active' && 'No active submissions in review or revision.'}
+                {submissions.length > 0 && submissionsTab === 'history' && 'No submission history (approved or rejected records).'}
+              </div>
+            )}
+
             <div className="mt-4 grid gap-4">
-              {submissions.map((submission) => (
+              {paginatedSubmissions.map((submission) => (
                 <article key={submission.id} className="rounded-2xl border border-black/10 dark:border-line bg-white/70 dark:bg-panel p-4 text-[#1b4332] dark:text-ink">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
@@ -373,6 +447,33 @@ export default function SuggestHerbPage() {
                 </article>
               ))}
             </div>
+
+            {/* Pagination Controls */}
+            {totalSubmissionPages > 1 && (
+              <div className="mt-4 flex items-center justify-between border-t border-[#1b4332]/10 dark:border-line pt-3 text-xs">
+                <span className="text-gray-500 dark:text-muted font-medium">
+                  Page {submissionsPage} of {totalSubmissionPages} ({displayedSubmissions.length} {displayedSubmissions.length === 1 ? 'record' : 'records'})
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSubmissionsPage((p) => Math.max(1, p - 1))}
+                    disabled={submissionsPage === 1}
+                    className="rounded-lg border border-line bg-panel px-2.5 py-1 font-semibold text-ink disabled:opacity-40 disabled:cursor-not-allowed hover:bg-soft transition-colors"
+                  >
+                    Previous
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSubmissionsPage((p) => Math.min(totalSubmissionPages, p + 1))}
+                    disabled={submissionsPage === totalSubmissionPages}
+                    className="rounded-lg border border-line bg-panel px-2.5 py-1 font-semibold text-ink disabled:opacity-40 disabled:cursor-not-allowed hover:bg-soft transition-colors"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
           </section>
         )}
 

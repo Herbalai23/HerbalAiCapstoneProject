@@ -45,7 +45,7 @@ export default function HomeHero() {
         </div>
 
         <div className="w-full md:col-span-6 lg:col-span-5">
-          <div className="flex flex-col rounded-2xl bg-panel p-5 shadow-sm lg:p-6">
+          <div tabIndex={0} role="region" aria-label="Dr. Ai conversation preview" className="flex flex-col rounded-2xl bg-panel p-5 shadow-sm lg:p-6 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
             <div className="flex items-center gap-3">
               <DrAiAvatar className="h-12 w-12 text-ink" />
               <div><h2 className="text-base font-bold text-ink">Dr. Ai</h2><span className="text-sm text-muted">Herbal library assistant</span></div>

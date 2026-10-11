@@ -75,7 +75,7 @@ export default function Navbar() {
 
   return (
     <>
-      <nav aria-label="Main navigation" className={`site-nav sticky top-0 z-50 w-full glass-header px-3 py-2 shadow-sm sm:px-6 ${pathname === '/' ? 'home-site-nav' : ''}`}>
+      <nav aria-label="Main navigation" className="site-nav sticky top-0 z-50 w-full glass-header px-3 py-2 shadow-sm sm:px-6">
         <div className="mx-auto flex max-w-7xl items-center justify-between">
           {/* Logo */}
           <Link href="/" aria-label="Herbal Ai home" className="flex items-center gap-2 group shrink-0">

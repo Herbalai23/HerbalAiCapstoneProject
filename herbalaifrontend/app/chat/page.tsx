@@ -168,7 +168,7 @@ function ChatContent() {
       if (!mountedRef.current || controller.signal.aborted || activeRequestRef.current !== controller) return;
       setMessages((prev) => prev.filter((message) => message.id !== modelMessageId && message.id !== userMsgId));
       setInput((current) => current || queryText);
-      setChatError(error instanceof DrAiCreditError ? error.message : 'Dr. Ai could not complete the answer. Please try again later.');
+      setChatError(error instanceof DrAiCreditError ? error.message : 'Dr. Ai could not complete the answer. Your draft was restored and no credits were deducted. Please try again later.');
     } finally {
       if (activeRequestRef.current === controller) {
         activeRequestRef.current = null;
