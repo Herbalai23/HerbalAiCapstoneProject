@@ -2,7 +2,12 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { mkdir } from 'node:fs/promises';
-import { chromium } from '../herbalaifrontend/node_modules/playwright-core/index.mjs';
+import { adminRehearsalDatabaseUrl } from './admin-rehearsal-boundary.mjs';
+
+const databaseUrl = adminRehearsalDatabaseUrl(process.env);
+process.env.DATABASE_URL = databaseUrl;
+process.env.DIRECT_URL = databaseUrl;
+const { chromium } = await import('../herbalaifrontend/node_modules/playwright-core/index.mjs');
 
 const output = fileURLToPath(new URL('../.demo-logs/admin-crud-rag/', import.meta.url));
 await mkdir(output, { recursive: true });
@@ -93,9 +98,6 @@ async function createContext(roleUser, viewport = { width: 1440, height: 900 }) 
 }
 
 try {
-  await prisma.herb.deleteMany({ where: { OR: [{ localName: { contains: 'Testleaf' } }, { scientificName: { contains: 'Testia' } }] } });
-  await prisma.knowledgeBase.deleteMany({ where: { question: { contains: 'silversage' } } });
-  await prisma.suggestedHerb.deleteMany({ where: { localName: { contains: 'Testleaf' } } });
   await prisma.user.createMany({ data: [admin, contributor].map((user) => ({
     ...user,
     password: 'not-used-by-this-test',

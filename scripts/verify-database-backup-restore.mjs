@@ -1,17 +1,10 @@
 import crypto from 'node:crypto';
 import process from 'node:process';
-import { fileURLToPath } from 'node:url';
-import dotenv from '../herbalaibackend/node_modules/dotenv/lib/main.js';
-import pg from '../herbalaibackend/node_modules/pg/lib/index.js';
+import { restoreTestDatabaseUrl } from './restore-test-boundary.mjs';
 
-dotenv.config({ path: fileURLToPath(new URL('../herbalaibackend/.env', import.meta.url)) });
-
+const databaseUrl = restoreTestDatabaseUrl(process.env);
+const { default: pg } = await import('../herbalaibackend/node_modules/pg/lib/index.js');
 const { Client } = pg;
-const databaseUrl = process.env.DATABASE_URL;
-
-if (!databaseUrl) {
-  throw new Error('DATABASE_URL is not configured.');
-}
 
 const quoteIdentifier = (value) => `"${String(value).replaceAll('"', '""')}"`;
 const schemaName = `restore_check_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
@@ -37,6 +30,7 @@ const digestTable = async (schema, table) => {
 try {
   await client.connect();
   connected = true;
+  await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ');
   const tableResult = await client.query(`
     SELECT table_name
     FROM information_schema.tables
@@ -76,14 +70,17 @@ try {
   }
 
   const totalRows = results.reduce((sum, result) => sum + result.rows, 0);
-  console.log(`Backup/restore verification passed for ${results.length} tables and ${totalRows} rows.`);
+  console.log(`Isolated logical-copy verification passed for ${results.length} tables and ${totalRows} rows. This is not a durable backup or disaster-recovery restore.`);
   console.log(`Serialized logical snapshot size: ${serializedBytes} bytes.`);
   for (const result of results) {
     console.log(`PASS ${result.table}: ${result.rows} rows`);
   }
 } finally {
   if (connected) {
-    await client.query(`DROP SCHEMA IF EXISTS ${quoteIdentifier(schemaName)} CASCADE`);
-    await client.end();
+    try {
+      await client.query('ROLLBACK');
+    } finally {
+      await client.end();
+    }
   }
 }
