@@ -61,7 +61,10 @@ describe('password and Google login ban behavior (mocked provider/database)', ()
   });
 
   it('keeps recovery responses neutral and sends no token for a banned account', async () => {
-    await expect(forgotPassword(account.email)).resolves.toMatchObject({ message: expect.stringContaining('If an account') });
+    const bannedResponse = await forgotPassword(account.email);
+    expect(bannedResponse).toMatchObject({ deliveryStatus: 'requested', message: expect.stringContaining('If this account is eligible') });
+    mocks.account.mockResolvedValue(null);
+    await expect(forgotPassword(account.email)).resolves.toEqual(bannedResponse);
     expect(mocks.token).not.toHaveBeenCalled();
   });
 });
