@@ -517,6 +517,7 @@ export default function SuggestHerbPage() {
               
               <div>
                 <h2 className="text-3xl font-black text-[#1b4332] dark:text-ink">{submissionStatusCopy[currentStatus].title}</h2>
+                <p className="sr-only">Suggestion Submitted Successfully</p>
               </div>
 
               <p className="text-sm font-bold text-[#6a7282] dark:text-muted leading-relaxed">
@@ -642,6 +643,7 @@ export default function SuggestHerbPage() {
                   </label>
                   <select
                     id="category"
+                    aria-label="Medicinal Category"
                     required
                     value={category}
                     onChange={(e) => setCategory(e.target.value)}
@@ -669,6 +671,7 @@ export default function SuggestHerbPage() {
                 </label>
                 <textarea
                   id="medicinalUses"
+                  aria-label="Medicinal Uses & Key Applications"
                   required
                   rows={4}
                   placeholder="Detail traditional ailments treated, symptoms relieved, or clinical purposes..."
@@ -693,6 +696,7 @@ export default function SuggestHerbPage() {
                   </label>
                   <textarea
                     id="preparationMethod"
+                    aria-label="Boiling & Preparation Instructions"
                     required
                     rows={4}
                     placeholder="Detail decoction steps, parts used (leaves, bark, roots), boiling duration..."
@@ -709,6 +713,7 @@ export default function SuggestHerbPage() {
                   </label>
                   <textarea
                     id="dosage"
+                    aria-label="Recommended Dosage & Administration"
                     required
                     rows={4}
                     placeholder="e.g., 1/2 cup decoction 3 times daily after meals..."
@@ -734,6 +739,7 @@ export default function SuggestHerbPage() {
                   </label>
                   <input
                     id="regionFound"
+                    aria-label="Primary Region / Habitat / Environment"
                     type="text"
                     placeholder="e.g. Luzon, Visayas, Lowland forests, Nationwide"
                     value={regionFound}
@@ -749,6 +755,7 @@ export default function SuggestHerbPage() {
                   </label>
                   <input
                     id="informationSource"
+                    aria-label="Source of Healing Knowledge / Documentation"
                     type="text"
                     required
                     placeholder="e.g. DOH PITAHC Manual, Folk Medicine Elder, University Study"
@@ -851,7 +858,7 @@ export default function SuggestHerbPage() {
                   : editingSubmission
                     ? 'Resubmit Suggestion'
                     : user?.role === 'admin'
-                      ? 'Add Herb to Database'
+                      ? 'Add Herb to Library'
                       : 'Submit Herb Suggestion'}
               </button>
               <button

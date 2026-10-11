@@ -75,6 +75,7 @@ async function action(page, method, suffixToMatch, perform, timeout = 60_000) {
     (response) => response.url().endsWith(suffixToMatch) && response.request().method() === method,
     { timeout },
   );
+  pending.catch(() => {});
   await perform();
   const response = await pending;
   const body = await response.json().catch(() => null);
@@ -92,6 +93,9 @@ async function createContext(roleUser, viewport = { width: 1440, height: 900 }) 
 }
 
 try {
+  await prisma.herb.deleteMany({ where: { OR: [{ localName: { contains: 'Testleaf' } }, { scientificName: { contains: 'Testia' } }] } });
+  await prisma.knowledgeBase.deleteMany({ where: { question: { contains: 'silversage' } } });
+  await prisma.suggestedHerb.deleteMany({ where: { localName: { contains: 'Testleaf' } } });
   await prisma.user.createMany({ data: [admin, contributor].map((user) => ({
     ...user,
     password: 'not-used-by-this-test',
@@ -121,6 +125,20 @@ try {
   const submission = await action(page, 'POST', '/api/suggest', () => page.getByRole('button', { name: 'Add Herb to Library' }).click());
   suggestionId = submission.data.suggestion.id;
   await page.getByText('Suggestion Submitted Successfully', { exact: true }).waitFor();
+  await prisma.suggestedHerb.update({
+    where: { id: suggestionId },
+    data: {
+      references: [
+        {
+          title: 'Automated test reference',
+          publisher: 'Test publisher',
+          citation: 'Test citation',
+          url: 'https://pitahc.gov.ph',
+          supports: ['identity', 'medicinalUses', 'preparationMethod', 'dosage', 'warnings'],
+        },
+      ],
+    },
+  });
 
   await go(page, '/admin');
   await adminTab(page, 'Pending Suggestions');
@@ -137,6 +155,7 @@ try {
   await adminTab(page, 'All Herbs');
   await page.getByPlaceholder('Search herbs...').fill(herb.localName);
   let herbRow = page.getByRole('row').filter({ has: page.getByText(herb.localName, { exact: true }) });
+  await herbRow.waitFor();
   await herbRow.getByRole('button', { name: 'Edit', exact: true }).click();
   const herbDialog = page.getByRole('dialog', { name: 'Edit Herb' });
   await herbDialog.getByLabel('Local Name').fill(updatedHerb.localName);
@@ -158,12 +177,13 @@ try {
   await go(page, '/library');
   await page.getByPlaceholder('Search by name, scientific name, or uses...').fill(updatedHerb.localName);
   await page.getByText(updatedHerb.localName, { exact: true }).click();
-  await page.getByLabel(updatedHerb.localName).getByText(updatedHerb.medicinalUses, { exact: true }).waitFor();
+  await page.getByLabel(`${updatedHerb.localName} details`, { exact: true }).getByText(updatedHerb.medicinalUses, { exact: true }).waitFor();
 
   await go(page, '/admin');
   await adminTab(page, 'All Herbs');
   await page.getByPlaceholder('Search herbs...').fill(updatedHerb.localName);
   herbRow = page.getByRole('row').filter({ has: page.getByText(updatedHerb.localName, { exact: true }) });
+  await herbRow.waitFor();
   page.once('dialog', (dialog) => dialog.accept());
   await action(page, 'DELETE', `/api/herbs/${herbId}`, () => herbRow.getByRole('button', { name: 'Delete', exact: true }).click());
   assert.equal(await prisma.herb.count({ where: { id: herbId } }), 0);

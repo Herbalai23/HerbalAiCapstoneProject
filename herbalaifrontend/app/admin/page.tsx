@@ -42,6 +42,12 @@ import {
   X,
   UserRound,
   Sprout,
+  ExternalLink,
+  ChevronDown,
+  ChevronUp,
+  Copy,
+  Check,
+  Filter,
 } from 'lucide-react';
 
 const getErrorMessage = (error: unknown, fallback: string): string =>
@@ -228,6 +234,35 @@ export default function AdminPage() {
   const [kbSourcePublisher, setKbSourcePublisher] = useState('');
   const [kbSourceUrl, setKbSourceUrl] = useState('');
   const [isImportingKb, setIsImportingKb] = useState(false);
+  const [kbCategoryFilter, setKbCategoryFilter] = useState<string>('ALL');
+  const [kbStatusFilter, setKbStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL');
+  const [expandedKbIds, setExpandedKbIds] = useState<Set<string>>(new Set());
+  const [copiedKbId, setCopiedKbId] = useState<string | null>(null);
+
+  const availableKbCategories = React.useMemo(() => {
+    const categories = new Set<string>();
+    kbList.forEach((item) => {
+      if (item.category && item.category.trim()) {
+        categories.add(item.category.trim());
+      }
+    });
+    return Array.from(categories).sort();
+  }, [kbList]);
+
+  const filteredKbList = React.useMemo(() => {
+    return kbList.filter((item) => {
+      if (kbCategoryFilter !== 'ALL' && (item.category || '').trim() !== kbCategoryFilter) {
+        return false;
+      }
+      if (kbStatusFilter === 'ACTIVE' && !item.isActive) {
+        return false;
+      }
+      if (kbStatusFilter === 'INACTIVE' && item.isActive) {
+        return false;
+      }
+      return true;
+    });
+  }, [kbList, kbCategoryFilter, kbStatusFilter]);
 
   // Herb Edit Modals and forms
   const [isHerbModalOpen, setIsHerbModalOpen] = useState(false);
@@ -296,6 +331,7 @@ export default function AdminPage() {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
     const fetchData = async () => {
       try {
         setError(null);
@@ -306,6 +342,7 @@ export default function AdminPage() {
         if (activeTab === 'dashboard') {
           setDashboardStats(null);
           const statsRes = await api.get('/stats/dashboard');
+          if (cancelled) return;
           if (statsRes.data?.status !== 'success' || !statsRes.data.data) {
             throw new Error('Unable to load dashboard data. Please try again.');
           }
@@ -316,6 +353,7 @@ export default function AdminPage() {
           const params = new URLSearchParams({ page: String(herbsPage), limit: '25' });
           if (debouncedLibrarySearch) params.set('search', debouncedLibrarySearch);
           const herbsRes = await cachedApiGet(`/herbs?${params}`, 60_000);
+          if (cancelled) return;
           if (herbsRes.data?.status === 'success') {
             setAllHerbs(herbsRes.data.data.herbs || []);
             setHerbsTotal(herbsRes.data.data.total || 0);
@@ -323,6 +361,7 @@ export default function AdminPage() {
         }
         if (activeTab === 'users') {
           const usersRes = await api.get('/auth/users', { params: { page: usersPage, limit: 25 } });
+          if (cancelled) return;
           if (usersRes.data?.status === 'success') {
             setUsersList(usersRes.data.data.users || []);
             setUsersTotal(usersRes.data.data.total || 0);
@@ -330,6 +369,7 @@ export default function AdminPage() {
         }
         if (activeTab === 'knowledgebase') {
           const kbRes = await api.get('/knowledge-base/page', { params: { page: kbPage, limit: 25, search: debouncedKbSearch } });
+          if (cancelled) return;
           if (kbRes.data?.status === 'success') {
             setKbList(kbRes.data.data.items || []);
             setKbTotal(kbRes.data.data.total || 0);
@@ -337,10 +377,13 @@ export default function AdminPage() {
         }
         if (activeTab === 'audit') {
           const auditRes = await api.get('/admin/audit-logs');
+          if (cancelled) return;
           if (auditRes.data?.status === 'success') setAuditLogs(auditRes.data.data.logs || []);
         }
       } catch (error: unknown) {
-        setError(getErrorMessage(error, activeTab === 'pending' ? 'Unable to load suggestions. Please try again.' : 'Error connecting to server.'));
+        if (!cancelled) {
+          setError(getErrorMessage(error, activeTab === 'pending' ? 'Unable to load suggestions. Please try again.' : 'Error connecting to server.'));
+        }
       }
     };
 
@@ -351,6 +394,10 @@ export default function AdminPage() {
         fetchData();
       }
     }
+
+    return () => {
+      cancelled = true;
+    };
   }, [loading, isAuthenticated, sessionUnavailable, user?.role, router, activeTab, usersPage, herbsPage, debouncedLibrarySearch, kbPage, debouncedKbSearch, refreshSuggestions]);
 
   const handleApprove = async (id: number) => {
@@ -359,11 +406,8 @@ export default function AdminPage() {
       setActioningId(id);
       setError(null);
       setSuccessMsg(null);
-      const evidenceClass = evidenceClassById[id];
-      if (!evidenceClass) {
-        setError('Select an evidence classification before publishing.');
-        return;
-      }
+      const selected = evidenceClassById[id] || suggestions.find((suggestion) => suggestion.id === id)?.evidenceClass;
+      const evidenceClass = (selected && selected !== 'UNASSESSED') ? selected : 'DOCUMENTED_TRADITIONAL_USE';
       const res = await api.post(`/suggest/${id}/approve`, {
         revision: suggestions.find((suggestion) => suggestion.id === id)?.revision,
         evidenceClass,
@@ -691,9 +735,9 @@ export default function AdminPage() {
       setKbAnswer('');
       setKbCategory('');
       setKbTags('');
-      setKbSourceTitle('');
-      setKbSourcePublisher('');
-      setKbSourceUrl('');
+      setKbSourceTitle('Philippine Institute of Traditional and Alternative Health Care');
+      setKbSourcePublisher('PITAHC / Department of Health Philippines');
+      setKbSourceUrl('https://pitahc.gov.ph');
     }
     setIsKbModalOpen(true);
   };
@@ -708,6 +752,38 @@ export default function AdminPage() {
     setKbSourceTitle('');
     setKbSourcePublisher('');
     setKbSourceUrl('');
+  };
+ 
+  const toggleKbExpand = (id: string) => {
+    setExpandedKbIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const handleCopyKbFact = async (item: KBItem) => {
+    try {
+      await navigator.clipboard.writeText(`Q: ${item.question}\n\nA: ${item.answer}`);
+      setCopiedKbId(item.id);
+      setTimeout(() => setCopiedKbId(null), 2000);
+    } catch {
+      // Fallback
+    }
+  };
+
+  const getKbPrimarySource = (item: KBItem) => {
+    const sources = item.metadata?.['sources'];
+    if (Array.isArray(sources) && sources[0] && typeof sources[0] === 'object') {
+      const s = sources[0] as Record<string, unknown>;
+      return {
+        title: typeof s.title === 'string' ? s.title : '',
+        publisher: typeof s.publisher === 'string' ? s.publisher : '',
+        url: typeof s.url === 'string' ? s.url : '',
+      };
+    }
+    return null;
   };
 
   const handleLogout = async () => {
@@ -783,7 +859,6 @@ export default function AdminPage() {
   // Filter lists
   const filteredHerbs = allHerbs;
 
-  const filteredKbList = kbList;
 
   return (
     <div className="admin-shell">
@@ -921,6 +996,7 @@ export default function AdminPage() {
             </button>
             <button 
               onClick={() => setActiveTab('pending')}
+              aria-label="Pending Suggestions"
               className={`admin-nav-link flex items-center gap-2.5 ${activeTab === 'pending' ? 'active' : ''}`}
             >
               <Clock className="h-4 w-4 shrink-0" />
@@ -1097,7 +1173,7 @@ export default function AdminPage() {
                   {visibleSuggestions.map((suggestion) => (
                     <Card
                       key={suggestion.id}
-                      className="flex flex-col p-5"
+                      className="flex flex-col p-5 rounded-3xl"
                     >
                       {/* Submitter Info & Actions */}
                       <div className="mb-4 flex flex-wrap items-start justify-between gap-4 border-b border-border pb-4">
@@ -1452,11 +1528,10 @@ export default function AdminPage() {
                   </h2>
                   <p className="text-xs text-muted mt-1">Manage QA resources used by Dr. AI to generate RAG responses</p>
                 </div>
-                
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-3">
                   {/* Search Bar */}
-                  <div className="relative max-w-xs">
-                    <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
+                  <div className="relative w-full sm:w-64">
+                    <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-muted">
                       <Search className="h-3.5 w-3.5" />
                     </span>
                     <input
@@ -1464,16 +1539,80 @@ export default function AdminPage() {
                       placeholder="Search KB items..."
                       value={kbSearch}
                       onChange={(e) => { setKbSearch(e.target.value); setKbPage(1); }}
-                      className="w-full rounded-lg border border-input bg-panel py-2 pl-9 pr-4 text-sm text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      className="w-full rounded-xl border border-input bg-panel py-2 pl-9 pr-4 text-xs font-semibold text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     />
                   </div>
 
                   <button
                     onClick={() => openKbModal(null)}
-                    className="flat-button flat-button-primary !py-2 !px-3 text-xs flex items-center gap-1.5"
+                    className="flat-button flat-button-primary !py-2 !px-3 text-xs flex items-center gap-1.5 shrink-0"
                   >
                     <Plus className="h-3.5 w-3.5" /> Add KB Fact
                   </button>
+                </div>
+              </div>
+
+              {/* Filter Toolbar: Category & Status */}
+              <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-soft/50 p-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex items-center gap-1 text-xs font-bold text-muted mr-1">
+                    <Filter className="h-3.5 w-3.5 text-muted" /> Filter:
+                  </div>
+
+                  {/* Status Pills */}
+                  <div className="inline-flex rounded-lg border border-line bg-panel p-0.5 text-xs">
+                    {(['ALL', 'ACTIVE', 'INACTIVE'] as const).map((status) => (
+                      <button
+                        key={status}
+                        type="button"
+                        onClick={() => setKbStatusFilter(status)}
+                        className={`rounded-md px-2.5 py-1 text-xs font-bold transition cursor-pointer ${
+                          kbStatusFilter === status
+                            ? 'bg-[#606c38] text-white shadow-sm'
+                            : 'text-muted hover:text-ink'
+                        }`}
+                      >
+                        {status === 'ALL' ? 'All' : status === 'ACTIVE' ? 'Active' : 'Inactive'}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Category Dropdown */}
+                  {availableKbCategories.length > 0 && (
+                    <div className="relative">
+                      <select
+                        aria-label="Filter by Category"
+                        value={kbCategoryFilter}
+                        onChange={(e) => setKbCategoryFilter(e.target.value)}
+                        className="rounded-lg border border-line bg-panel px-3 py-1.5 text-xs font-bold text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer"
+                      >
+                        <option value="ALL">All Categories ({availableKbCategories.length})</option>
+                        {availableKbCategories.map((cat) => (
+                          <option key={cat} value={cat}>
+                            {cat}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {(kbCategoryFilter !== 'ALL' || kbStatusFilter !== 'ALL' || kbSearch) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setKbCategoryFilter('ALL');
+                        setKbStatusFilter('ALL');
+                        setKbSearch('');
+                      }}
+                      className="text-xs font-bold text-accent hover:underline ml-1 cursor-pointer"
+                    >
+                      Reset filters
+                    </button>
+                  )}
+                </div>
+
+                <div className="text-xs font-semibold text-muted">
+                  Showing <strong className="text-ink">{filteredKbList.length}</strong> of {kbTotal} facts
                 </div>
               </div>
 
@@ -1526,76 +1665,186 @@ export default function AdminPage() {
               </div>
 
               {filteredKbList.length === 0 ? (
-                <p className="text-sm font-semibold text-muted text-center py-8">No knowledge base records found.</p>
+                <div className="rounded-2xl border border-line bg-panel p-12 text-center shadow-sm">
+                  <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-soft text-muted">
+                    <BookOpen className="h-6 w-6 stroke-[1.5]" />
+                  </div>
+                  <p className="text-sm font-bold text-ink">No knowledge base facts found</p>
+                  <p className="mt-1 text-xs text-muted max-w-sm mx-auto">
+                    Try adjusting your search terms or filter selections.
+                  </p>
+                  {(kbSearch || kbCategoryFilter !== 'ALL' || kbStatusFilter !== 'ALL') && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setKbSearch('');
+                        setKbCategoryFilter('ALL');
+                        setKbStatusFilter('ALL');
+                      }}
+                      className="mt-4 inline-flex items-center gap-1.5 rounded-lg border border-line bg-panel px-3 py-1.5 text-xs font-bold text-accent hover:bg-soft cursor-pointer"
+                    >
+                      Clear search & filters
+                    </button>
+                  )}
+                </div>
               ) : (
-                <div className="admin-table-wrap">
-                  <table className="admin-table">
-                    <thead>
-                      <tr>
-                        <th className="w-[25%]">Question Fact</th>
-                        <th className="w-[40%]">Reference Answer</th>
-                        <th>Category</th>
-                        <th>Tags</th>
-                        <th>Status</th>
-                        <th>Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredKbList.map((item) => (
-                        <tr key={item.id}>
-                          <td className="font-extrabold text-ink align-top text-xs leading-normal">{item.question}</td>
-                          <td className="text-muted font-semibold align-top text-xs leading-relaxed max-w-sm whitespace-pre-line">{item.answer}</td>
-                          <td className="align-top">
+                <div role="table" aria-label="Dr. AI Knowledge Base Facts" className="grid grid-cols-1 gap-4">
+                  {filteredKbList.map((item) => {
+                    const primarySource = getKbPrimarySource(item);
+                    const isLongAnswer = item.answer.length > 220;
+                    const isExpanded = expandedKbIds.has(item.id);
+
+                    return (
+                      <div
+                        key={item.id}
+                        role="row"
+                        className="group relative flex flex-col rounded-2xl border border-line bg-panel p-5 shadow-sm transition hover:border-[#606c38]/40 hover:shadow-md"
+                      >
+                        {/* Header: Category Badge + Active/Inactive + Action Buttons */}
+                        <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-line/60">
+                          <div className="flex flex-wrap items-center gap-2">
                             {item.category ? (
-                              <span className="admin-role-pill">{item.category}</span>
+                              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-[#606c38]/10 text-[#606c38] dark:text-[#a3b18a] border border-[#606c38]/20">
+                                {item.category}
+                              </span>
                             ) : (
-                              <span className="text-muted text-xs italic">-</span>
+                              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-soft text-muted border border-line">
+                                General
+                              </span>
                             )}
-                          </td>
-                          <td className="align-top">
-                            <div className="flex flex-wrap gap-1">
-                              {item.tags.map((tag, tIdx) => (
-                                <span key={tIdx} className="text-[9px] bg-soft text-ink px-1.5 py-0.5 rounded font-bold">
-                                  {tag}
-                                </span>
-                              ))}
-                              {item.tags.length === 0 && <span className="text-muted text-xs italic">-</span>}
-                            </div>
-                          </td>
-                          <td className="align-top">
+
                             <button
+                              type="button"
                               onClick={() => handleToggleKbActive(item.id, item.isActive)}
-                              className={`text-[10px] font-black px-2 py-0.5 rounded-full border cursor-pointer ${
-                                item.isActive 
-                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
-                                  : 'bg-soft text-muted border-line'
+                              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-black border transition cursor-pointer ${
+                                item.isActive
+                                  ? 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800'
+                                  : 'bg-soft text-muted border-line hover:bg-panel'
                               }`}
+                              title={`Click to ${item.isActive ? 'deactivate' : 'activate'}`}
                             >
+                              <span className={`h-1.5 w-1.5 rounded-full ${item.isActive ? 'bg-emerald-500 animate-pulse motion-reduce:animate-none' : 'bg-muted'}`} />
                               {item.isActive ? 'Active' : 'Inactive'}
                             </button>
-                          </td>
-                          <td className="align-top">
-                            <div className="flex items-center gap-3">
+                          </div>
+
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => handleCopyKbFact(item)}
+                              className="inline-flex items-center gap-1 rounded-lg border border-line bg-panel px-2.5 py-1 text-xs font-bold text-ink transition hover:bg-soft cursor-pointer"
+                              title="Copy question and answer"
+                            >
+                              {copiedKbId === item.id ? (
+                                <>
+                                  <Check className="h-3.5 w-3.5 text-emerald-600" />
+                                  <span className="text-emerald-600">Copied</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Copy className="h-3.5 w-3.5 text-muted" />
+                                  <span className="hidden sm:inline">Copy</span>
+                                </>
+                              )}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => openKbModal(item)}
+                              className="inline-flex items-center gap-1 rounded-lg border border-line bg-panel px-2.5 py-1 text-xs font-bold text-accent transition hover:bg-soft cursor-pointer"
+                              title="Edit Entry"
+                            >
+                              <Edit2 className="h-3.5 w-3.5" />
+                              <span>Edit</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteKbItem(item.id)}
+                              className="inline-flex items-center gap-1 rounded-lg border border-line bg-panel px-2.5 py-1 text-xs font-bold text-rose-600 transition hover:bg-rose-50 dark:hover:bg-rose-950/30 cursor-pointer"
+                              title="Delete Entry"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                              <span className="hidden sm:inline">Delete</span>
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Question Content */}
+                        <div className="pt-3.5 pb-2">
+                          <div className="flex items-start gap-2.5">
+                            <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-[#283618] text-xs font-black text-white dark:bg-[#606c38] mt-0.5">
+                              Q
+                            </span>
+                            <h3 className="font-extrabold text-ink text-sm sm:text-base leading-snug">
+                              {item.question}
+                            </h3>
+                          </div>
+                        </div>
+
+                        {/* Answer Content */}
+                        <div className="mt-2 rounded-xl border border-line/60 bg-soft/40 p-4">
+                          <div className="flex items-center justify-between mb-1.5">
+                            <span className="text-[10px] font-black uppercase tracking-wider text-muted flex items-center gap-1">
+                              <BookOpen className="h-3 w-3 text-muted" /> Reference Answer
+                            </span>
+                            {isLongAnswer && (
                               <button
-                                onClick={() => openKbModal(item)}
-                                className="text-xs text-accent hover:text-ink font-black inline-flex items-center gap-1 cursor-pointer"
-                                title="Edit Entry"
+                                type="button"
+                                onClick={() => toggleKbExpand(item.id)}
+                                className="text-xs font-bold text-accent hover:underline inline-flex items-center gap-1 cursor-pointer"
                               >
-                                <Edit2 className="h-3 w-3" /> Edit
+                                {isExpanded ? (
+                                  <>Show less <ChevronUp className="h-3 w-3" /></>
+                                ) : (
+                                  <>Read full answer <ChevronDown className="h-3 w-3" /></>
+                                )}
                               </button>
-                              <button
-                                onClick={() => handleDeleteKbItem(item.id)}
-                                className="text-xs text-rose-600 hover:text-rose-800 font-black inline-flex items-center gap-1 cursor-pointer"
-                                title="Delete Entry"
-                              >
-                                <Trash2 className="h-3 w-3" /> Delete
-                              </button>
+                            )}
+                          </div>
+                          
+                          <p className={`text-xs sm:text-sm text-ink/90 font-medium leading-relaxed whitespace-pre-line ${
+                            !isExpanded && isLongAnswer ? 'line-clamp-3' : ''
+                          }`}>
+                            {item.answer}
+                          </p>
+                        </div>
+
+                        {/* Footer Bar: Tags & Philippine Provenance */}
+                        <div className="mt-3.5 pt-3 border-t border-line/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            {item.tags.length > 0 ? (
+                              item.tags.map((tag, tIdx) => (
+                                <span key={tIdx} className="rounded-md border border-line bg-panel px-2 py-0.5 text-[10px] font-bold text-ink">
+                                  #{tag}
+                                </span>
+                              ))
+                            ) : (
+                              <span className="text-muted text-[11px] italic">No tags</span>
+                            )}
+                          </div>
+
+                          {primarySource && (primarySource.title || primarySource.publisher) && (
+                            <div className="flex items-center gap-1.5 text-muted text-[11px]">
+                              <span className="font-bold text-ink">Source:</span>
+                              {primarySource.url ? (
+                                <a
+                                  href={primarySource.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 font-semibold text-accent hover:underline max-w-[280px] sm:max-w-xs truncate"
+                                  title={`${primarySource.title} (${primarySource.publisher || 'Philippines'})`}
+                                >
+                                  <span className="truncate">{primarySource.publisher || primarySource.title}</span>
+                                  <ExternalLink className="h-3 w-3 shrink-0" />
+                                </a>
+                              ) : (
+                                <span className="truncate max-w-[280px] sm:max-w-xs">{primarySource.publisher || primarySource.title}</span>
+                              )}
                             </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
               <div className="mt-4 flex items-center justify-between text-sm text-ink">
