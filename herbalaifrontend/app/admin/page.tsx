@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
 import dynamic from 'next/dynamic';
 import { useAuth } from '../../context/AuthContext';
@@ -243,6 +243,36 @@ export default function AdminPage() {
   const [copiedKbId, setCopiedKbId] = useState<string | null>(null);
 
   const filteredKbList = kbList;
+
+  // User Management filters and state
+  const [userSearch, setUserSearch] = useState('');
+  const [userRoleFilter, setUserRoleFilter] = useState<'ALL' | 'admin' | 'contributor'>('ALL');
+  const [userStatusFilter, setUserStatusFilter] = useState<'ALL' | 'ACTIVE' | 'BANNED'>('ALL');
+  const [copiedEmailId, setCopiedEmailId] = useState<string | null>(null);
+
+  const filteredUsersList = useMemo(() => {
+    return usersWithBanStatus.filter((u) => {
+      if (userRoleFilter !== 'ALL' && u.role !== userRoleFilter) {
+        return false;
+      }
+      if (userStatusFilter === 'ACTIVE' && u.isBanned) {
+        return false;
+      }
+      if (userStatusFilter === 'BANNED' && !u.isBanned) {
+        return false;
+      }
+      if (userSearch.trim()) {
+        const query = userSearch.toLowerCase().trim();
+        const matchesName = (u.name || '').toLowerCase().includes(query);
+        const matchesUsername = (u.username || '').toLowerCase().includes(query);
+        const matchesEmail = (u.email || '').toLowerCase().includes(query);
+        if (!matchesName && !matchesUsername && !matchesEmail) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }, [usersWithBanStatus, userRoleFilter, userStatusFilter, userSearch]);
 
   // Herb Edit Modals and forms
   const [isHerbModalOpen, setIsHerbModalOpen] = useState(false);
@@ -763,6 +793,16 @@ export default function AdminPage() {
       await navigator.clipboard.writeText(`Q: ${item.question}\n\nA: ${item.answer}`);
       setCopiedKbId(item.id);
       setTimeout(() => setCopiedKbId(null), 2000);
+    } catch {
+      // Fallback
+    }
+  };
+
+  const handleCopyEmail = async (userId: string, email: string) => {
+    try {
+      await navigator.clipboard.writeText(email);
+      setCopiedEmailId(userId);
+      setTimeout(() => setCopiedEmailId(null), 2000);
     } catch {
       // Fallback
     }
@@ -1424,82 +1464,298 @@ export default function AdminPage() {
 
           {/* TAB 4: USERS MANAGEMENT */}
           {activeTab === 'users' && (
-            <div className="rounded-2xl border border-line bg-panel p-6 shadow-sm">
-              <h2 className="font-black italic text-xl text-ink mb-6">
-                User Management Console
-              </h2>
+            <div className="rounded-2xl border border-line bg-panel p-4 sm:p-6 shadow-sm font-sans">
+              {/* Header with Title & Live Search */}
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+                <div>
+                  <h2 className="font-serif-custom font-black italic text-xl text-ink flex items-center gap-2">
+                    <Users className="h-5 w-5 text-accent" />
+                    User Management Console ({usersTotal})
+                  </h2>
+                  <p className="text-xs text-muted mt-1">
+                    Manage roles, authentication credentials, and platform account status
+                  </p>
+                </div>
 
-              <div className="admin-table-wrap">
-                <table className="admin-table">
-                  <thead>
-                    <tr>
-                      <th>Name</th>
-                      <th>Email</th>
-                      <th>System Role</th>
-                      <th>Status</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {usersWithBanStatus.map((u) => (
-                      <tr key={u.id}>
-                        <td className="font-extrabold text-ink flex items-center gap-2">
-                          <div className="h-8 w-8 rounded-full bg-soft text-ink flex items-center justify-center font-bold text-xs border border-line">
-                            {u.name?.charAt(0).toUpperCase() || 'U'}
-                          </div>
-                          <div>
-                            <span className="block">{u.name} {u.id === user.id ? <span className="text-xs text-muted font-bold ml-1">(You)</span> : ''}</span>
-                            <span className="text-[10px] text-muted font-semibold block">@{u.username}</span>
-                          </div>
-                        </td>
-                        <td className="font-semibold text-muted">{u.email}</td>
-                        <td>
-                          <span className={`text-[10px] font-black tracking-wider px-2.5 py-0.5 rounded-full uppercase ${
-                            u.role === 'admin' ? 'bg-[#1b4332] text-white' : 'bg-soft text-ink'
-                          }`}>
-                            {u.role}
-                          </span>
-                        </td>
-                        <td>
-                          {u.isBanned ? (
-                            <span className="admin-status !text-rose-600 !bg-rose-50 border border-rose-100 px-2 py-1 rounded-full text-[10px]">
-                              <span className="dot !bg-rose-500"></span> {u.banExpiresAt ? 'Temporarily banned' : 'Indefinitely banned'}
-                            </span>
-                          ) : (
-                            <span className="admin-status">
-                              <span className="dot"></span> Active
-                            </span>
-                          )}
-                          {u.isBanned && <div className="mt-2 max-w-xs break-words text-xs text-muted">
-                            <p>{u.banExpiresAt ? `Until ${new Date(u.banExpiresAt).toLocaleString()}` : 'Until an administrator unbans this account'}</p>
-                            <p className="mt-1">{u.banReason || 'No reason recorded for this earlier ban.'}</p>
-                          </div>}
-                        </td>
-                        <td>
-                          {u.id !== user.id && (
-                            <button
-                              onClick={() => { setError(null); setSuccessMsg(null); setBanTarget(u); }}
-                              disabled={banTarget !== null}
-                              className={`text-xs font-black px-3 py-1.5 rounded-lg border transition-all ${
-                                u.isBanned 
-                                  ? 'border-[#2d6a4f] text-[#2d6a4f] bg-[#eef5f0] hover:bg-[#2d6a4f] hover:text-white' 
-                                  : 'border-rose-600 text-rose-600 bg-rose-50 hover:bg-rose-600 hover:text-white'
-                              }`}
-                            >
-                              {u.isBanned ? 'Unban User' : 'Ban User'}
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                {/* Quick Search */}
+                <div className="relative w-full sm:w-72">
+                  <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-muted">
+                    <Search className="h-3.5 w-3.5" />
+                  </span>
+                  <input
+                    type="text"
+                    placeholder="Search name, @username, email..."
+                    value={userSearch}
+                    onChange={(e) => setUserSearch(e.target.value)}
+                    className="w-full rounded-xl border border-input bg-panel py-2 pl-9 pr-8 text-xs font-semibold text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  />
+                  {userSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setUserSearch('')}
+                      className="absolute inset-y-0 right-0 pr-2.5 flex items-center text-muted hover:text-ink cursor-pointer"
+                      title="Clear search"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
               </div>
-              <div className="mt-4 flex items-center justify-between text-sm text-ink">
-                <span>Page {usersPage} of {Math.max(1, Math.ceil(usersTotal / 25))} · {usersTotal} users</span>
-                <div className="flex gap-2">
-                  <button type="button" disabled={usersPage === 1} onClick={() => setUsersPage((page) => page - 1)} className="rounded-lg border px-3 py-1.5 disabled:opacity-40">Previous</button>
-                  <button type="button" disabled={usersPage * 25 >= usersTotal} onClick={() => setUsersPage((page) => page + 1)} className="rounded-lg border px-3 py-1.5 disabled:opacity-40">Next</button>
+
+              {/* Filter Toolbar: Status & Role */}
+              <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-soft/50 p-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex items-center gap-1 text-xs font-bold text-muted mr-1">
+                    <Filter className="h-3.5 w-3.5 text-muted" /> Filter:
+                  </div>
+
+                  {/* Status Pills */}
+                  <div className="inline-flex rounded-lg border border-line bg-panel p-0.5 text-xs">
+                    {(['ALL', 'ACTIVE', 'BANNED'] as const).map((status) => (
+                      <button
+                        key={status}
+                        type="button"
+                        onClick={() => setUserStatusFilter(status)}
+                        className={`rounded-md px-2.5 py-1 text-xs font-bold transition cursor-pointer ${
+                          userStatusFilter === status
+                            ? 'bg-[#606c38] text-white shadow-sm'
+                            : 'text-muted hover:text-ink'
+                        }`}
+                      >
+                        {status === 'ALL' ? 'All' : status === 'ACTIVE' ? 'Active' : 'Banned'}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Role Pills */}
+                  <div className="inline-flex rounded-lg border border-line bg-panel p-0.5 text-xs">
+                    {(['ALL', 'admin', 'contributor'] as const).map((role) => (
+                      <button
+                        key={role}
+                        type="button"
+                        onClick={() => setUserRoleFilter(role)}
+                        className={`rounded-md px-2.5 py-1 text-xs font-bold transition cursor-pointer capitalize ${
+                          userRoleFilter === role
+                            ? 'bg-[#2d6a4f] text-white shadow-sm'
+                            : 'text-muted hover:text-ink'
+                        }`}
+                      >
+                        {role === 'ALL' ? 'All Roles' : role === 'admin' ? 'Admins' : 'Contributors'}
+                      </button>
+                    ))}
+                  </div>
+
+                  {(userRoleFilter !== 'ALL' || userStatusFilter !== 'ALL' || userSearch) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setUserRoleFilter('ALL');
+                        setUserStatusFilter('ALL');
+                        setUserSearch('');
+                      }}
+                      className="text-xs font-bold text-accent hover:underline ml-1 cursor-pointer"
+                    >
+                      Reset filters
+                    </button>
+                  )}
+                </div>
+
+                <div className="text-xs font-semibold text-muted">
+                  Showing <strong className="text-ink">{filteredUsersList.length}</strong> of {usersTotal} accounts
+                </div>
+              </div>
+
+              {/* Users Cards / Rows */}
+              {filteredUsersList.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-line p-12 text-center">
+                  <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-soft text-muted mb-3">
+                    <Users className="h-6 w-6" />
+                  </div>
+                  <h3 className="font-bold text-ink text-sm">No users found</h3>
+                  <p className="text-xs text-muted mt-1 max-w-sm mx-auto">
+                    {userSearch || userRoleFilter !== 'ALL' || userStatusFilter !== 'ALL'
+                      ? 'No users match the active filters or search keyword.'
+                      : 'There are no registered accounts in this page view.'}
+                  </p>
+                  {(userSearch || userRoleFilter !== 'ALL' || userStatusFilter !== 'ALL') && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setUserSearch('');
+                        setUserRoleFilter('ALL');
+                        setUserStatusFilter('ALL');
+                      }}
+                      className="mt-4 text-xs font-bold text-accent hover:underline cursor-pointer"
+                    >
+                      Clear search & filters
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div role="table" aria-label="Users list" className="space-y-3">
+                  {filteredUsersList.map((u) => {
+                    const isCurrentUser = u.id === user.id;
+                    return (
+                      <div
+                        key={u.id}
+                        role="row"
+                        className={`group relative rounded-2xl border transition-all duration-200 p-4 sm:p-5 ${
+                          u.isBanned
+                            ? 'border-rose-500/30 bg-rose-500/[0.03] dark:bg-rose-950/[0.08]'
+                            : 'border-line bg-panel hover:border-line-strong hover:shadow-sm'
+                        }`}
+                      >
+                        {/* Top / Main Row: User details, Role, Status, and Action */}
+                        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                          {/* Left: User Identity */}
+                          <div className="flex items-start gap-3.5 min-w-0">
+                            {/* Avatar */}
+                            <div className="relative shrink-0">
+                              {u.avatar ? (
+                                <img
+                                  src={u.avatar}
+                                  alt={u.name}
+                                  className="h-11 w-11 rounded-2xl object-cover border border-line"
+                                />
+                              ) : (
+                                <div className="h-11 w-11 rounded-2xl bg-gradient-to-br from-[#2d6a4f]/20 to-[#606c38]/20 text-[#2d6a4f] dark:text-[#74c69d] flex items-center justify-center font-black text-sm border border-line shadow-inner">
+                                  {u.name?.charAt(0).toUpperCase() || 'U'}
+                                </div>
+                              )}
+                              {u.isBanned ? (
+                                <span className="absolute -bottom-1 -right-1 h-3.5 w-3.5 rounded-full bg-rose-600 ring-2 ring-panel" title="Banned" />
+                              ) : (
+                                <span className="absolute -bottom-1 -right-1 h-3.5 w-3.5 rounded-full bg-emerald-500 ring-2 ring-panel" title="Active" />
+                              )}
+                            </div>
+
+                            {/* Name, Username, and Badges */}
+                            <div className="min-w-0 flex-1">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="font-extrabold text-ink text-sm sm:text-base tracking-tight truncate">
+                                  {u.name}
+                                </span>
+                                {isCurrentUser && (
+                                  <span className="rounded-md bg-[#2d6a4f]/15 px-2 py-0.5 text-[10px] font-black text-[#2d6a4f] dark:text-[#74c69d] border border-[#2d6a4f]/30">
+                                    You
+                                  </span>
+                                )}
+                                <span className={`text-[10px] font-black tracking-wider px-2 py-0.5 rounded-md uppercase border ${
+                                  u.role === 'admin'
+                                    ? 'bg-[#1b4332]/10 dark:bg-[#1b4332]/40 text-[#2d6a4f] dark:text-[#74c69d] border-[#2d6a4f]/30'
+                                    : 'bg-soft text-ink border-line'
+                                }`}>
+                                  {u.role}
+                                </span>
+                              </div>
+
+                              <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted font-medium">
+                                <span className="font-semibold text-muted">@{u.username}</span>
+                                <span className="inline-block h-1 w-1 rounded-full bg-muted/40" />
+                                <div className="inline-flex items-center gap-1.5 min-w-0">
+                                  <span className="truncate max-w-[220px] sm:max-w-md font-mono text-[11px] text-ink/80">{u.email}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleCopyEmail(u.id, u.email)}
+                                    className="text-muted hover:text-ink cursor-pointer p-0.5"
+                                    title="Copy email address"
+                                  >
+                                    {copiedEmailId === u.id ? (
+                                      <Check className="h-3 w-3 text-emerald-600" />
+                                    ) : (
+                                      <Copy className="h-3 w-3" />
+                                    )}
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Right: Status Pill & Action Button */}
+                          <div className="flex flex-wrap items-center justify-between lg:justify-end gap-3 pt-2 lg:pt-0 border-t lg:border-t-0 border-line/50">
+                            {/* Status Indicator */}
+                            <div>
+                              {u.isBanned ? (
+                                <span className="inline-flex items-center gap-1.5 rounded-full border border-rose-500/30 bg-rose-500/10 px-3 py-1 text-xs font-bold text-rose-700 dark:text-rose-400">
+                                  <span className="h-2 w-2 rounded-full bg-rose-500 animate-pulse" />
+                                  {u.banExpiresAt ? 'Temporarily Banned' : 'Indefinitely Banned'}
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-bold text-emerald-700 dark:text-emerald-400">
+                                  <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                                  Active
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Ban / Unban Button */}
+                            <div>
+                              {!isCurrentUser && (
+                                <button
+                                  type="button"
+                                  onClick={() => { setError(null); setSuccessMsg(null); setBanTarget(u); }}
+                                  disabled={banTarget !== null}
+                                  className={`inline-flex items-center gap-1.5 text-xs font-black px-3.5 py-1.5 rounded-xl border transition-all cursor-pointer shadow-sm disabled:opacity-50 ${
+                                    u.isBanned 
+                                      ? 'border-[#2d6a4f]/40 text-[#2d6a4f] bg-[#eef5f0] hover:bg-[#2d6a4f] hover:text-white dark:border-[#74c69d]/40 dark:text-[#74c69d] dark:bg-[#2d6a4f]/20 dark:hover:bg-[#2d6a4f] dark:hover:text-white' 
+                                      : 'border-rose-600/40 text-rose-600 bg-rose-50 hover:bg-rose-600 hover:text-white dark:border-rose-400/40 dark:text-rose-400 dark:bg-rose-950/30 dark:hover:bg-rose-600 dark:hover:text-white'
+                                  }`}
+                                >
+                                  {u.isBanned ? 'Unban User' : 'Ban User'}
+                                </button>
+                              )}
+                              {isCurrentUser && (
+                                <span className="text-[11px] font-bold text-muted px-2.5 py-1 rounded-lg border border-line bg-soft/60">
+                                  Protected (Current Admin)
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Ban Reason Callout (if account is banned) */}
+                        {u.isBanned && (
+                          <div className="mt-3.5 rounded-xl border border-rose-500/20 bg-rose-500/[0.04] dark:bg-rose-950/20 p-3 text-xs">
+                            <div className="flex items-center gap-2 font-bold text-rose-800 dark:text-rose-300">
+                              <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                              <span>
+                                {u.banExpiresAt ? `Ban active until ${new Date(u.banExpiresAt).toLocaleString()}` : 'Indefinite suspension (until manual unban)'}
+                              </span>
+                            </div>
+                            <p className="mt-1 pl-5.5 text-ink/80 font-medium leading-relaxed">
+                              <span className="font-bold text-muted">Reason: </span>
+                              {u.banReason || 'No reason recorded for this earlier ban.'}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Pagination */}
+              <div className="mt-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-sm text-ink border-t border-line/60 pt-4">
+                <span className="text-xs font-semibold text-muted">
+                  Page <strong className="text-ink">{usersPage}</strong> of {Math.max(1, Math.ceil(usersTotal / 25))} · {usersTotal} total users
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={usersPage === 1}
+                    onClick={() => setUsersPage((page) => page - 1)}
+                    className="rounded-xl border border-line bg-panel px-3.5 py-1.5 text-xs font-bold text-ink transition hover:bg-soft disabled:opacity-40 cursor-pointer"
+                  >
+                    Previous
+                  </button>
+                  <button
+                    type="button"
+                    disabled={usersPage * 25 >= usersTotal}
+                    onClick={() => setUsersPage((page) => page + 1)}
+                    className="rounded-xl border border-line bg-panel px-3.5 py-1.5 text-xs font-bold text-ink transition hover:bg-soft disabled:opacity-40 cursor-pointer"
+                  >
+                    Next
+                  </button>
                 </div>
               </div>
             </div>
