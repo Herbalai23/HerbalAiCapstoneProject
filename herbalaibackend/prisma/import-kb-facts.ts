@@ -2,6 +2,7 @@ import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { closeDatabasePool, prisma } from '../src/lib/prisma.js';
 import { generateEmbedding } from '../src/services/ai/core/gemini-service.js';
+import { annotatePitahcSourceAvailability } from '../src/content/pitahc-source-availability.js';
 
 interface KnowledgeFact {
   question: string;
@@ -62,11 +63,12 @@ const main = async () => {
   if (new Set(questions).size !== questions.length) throw new Error('Knowledge-base files contain duplicate questions.');
 
   for (const fact of facts) {
+    const metadata = annotatePitahcSourceAvailability(fact.metadata);
     const embedding = await generateEmbedding(`${fact.question}\n${fact.answer}`);
     const record = await prisma.knowledgeBase.upsert({
       where: { question: fact.question },
-      create: { ...fact, isActive: true },
-      update: { answer: fact.answer, category: fact.category, tags: fact.tags, metadata: fact.metadata, isActive: true },
+      create: { ...fact, metadata, isActive: true },
+      update: { answer: fact.answer, category: fact.category, tags: fact.tags, metadata, isActive: true },
       select: { id: true },
     });
     await prisma.$executeRawUnsafe(

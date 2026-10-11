@@ -2,6 +2,7 @@ import { upsertKBBatch } from '../../../repositories/knowledgebase.repository.js
 import { rethrowDatabaseUnavailable } from '../../../utils/error-response.js';
 import { generateEmbedding } from '../core/gemini-service.js';
 import { hasPhilippineSourceMetadata } from './source-metadata.js';
+import { annotatePitahcSourceAvailability } from '../../../content/pitahc-source-availability.js';
 
 interface ImportKnowledgeFact {
   question: string;
@@ -36,7 +37,7 @@ export async function ImportKnowledgeBaseService(facts: ImportKnowledgeFact[], a
         tags: Array.from(new Set((fact.tags ?? []).map((tag) => tag.trim().toLowerCase()).filter(Boolean))),
         embedding: `[${embedding.join(',')}]`,
         ...(fact.category?.trim() ? { category: fact.category.trim() } : {}),
-        ...(fact.metadata ? { metadata: fact.metadata } : {}),
+        ...(fact.metadata ? { metadata: annotatePitahcSourceAvailability(fact.metadata) } : {}),
       });
     }
 

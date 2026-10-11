@@ -2,6 +2,7 @@ import { prisma } from "../src/lib/prisma.js";
 import bcrypt from "bcryptjs";
 import dotenv from "dotenv";
 import { generateEmbedding } from "../src/services/ai/core/gemini-service.js";
+import { PITAHC_DIRECTORY_UNAVAILABLE_CITATION } from "../src/content/pitahc-source-availability.js";
 
 dotenv.config();
 
@@ -299,9 +300,10 @@ async function main() {
         herbId: seededHerb.id,
         title: "PITAHC Directory of Herbs",
         publisher: "Philippine Institute of Traditional and Alternative Health Care",
-        url: "https://pitahc.gov.ph/herbs-directory/",
+        url: null,
+        citation: PITAHC_DIRECTORY_UNAVAILABLE_CITATION,
         supports: ["identity", "dohListing"],
-        accessedAt: new Date(),
+        accessedAt: null,
       },
     });
 
