@@ -14,6 +14,8 @@ import { ThemeToggle } from '../../components/DisplayPreferences';
 import SuggestionStatusBadge, { type SuggestionStatus } from '../../components/SuggestionStatusBadge';
 import UserBanDialog from '../../components/UserBanDialog';
 import { isActiveUserBan, type BanUser } from '../../lib/user-ban';
+import Link from 'next/link';
+import NotificationBell from '../../components/NotificationBell';
 import { Button } from '../../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import {
@@ -36,6 +38,10 @@ import {
   LoaderCircle,
   Upload,
   LogOut,
+  Menu,
+  X,
+  UserRound,
+  Sprout,
 } from 'lucide-react';
 
 const getErrorMessage = (error: unknown, fallback: string): string =>
@@ -762,88 +768,197 @@ export default function AdminPage() {
         refreshSuggestions().catch(() => setError('Edits saved. Refresh to load the latest submissions.'));
       }} />}
       {/* Sidebar Console */}
-      <aside className={`admin-sidebar ${mobileNavOpen ? 'is-open' : ''}`}>
-        <div className="admin-brand">
-          <BrandMark className="h-9 w-9 shrink-0 text-brand" />
-          <div>
-            <strong className="text-ink font-black text-lg">Herbal-Ai</strong>
-            <span className="text-muted text-xs block font-bold">Admin Console</span>
+      <aside className="admin-sidebar relative">
+        {/* Brand bar / Mobile top header */}
+        <div className="admin-brand flex items-center justify-between">
+          <Link href="/" aria-label="Herbal Ai home" className="flex items-center gap-2">
+            <BrandMark className="h-9 w-9 shrink-0 text-[#1b4332] dark:text-[#e6f1e7]" />
+            <span className="font-sans text-xl font-extrabold tracking-tight text-[#1b4332] dark:text-ink whitespace-nowrap">
+              Herbal-<span className="text-[#2d6a4f] dark:text-accent">Ai</span>
+            </span>
+            <span className="hidden lg:block text-muted text-xs font-bold ml-1">Admin Console</span>
+          </Link>
+
+          {/* Mobile top bar buttons (Identical to Home Navbar in screenshot) */}
+          <div className="flex items-center gap-2 lg:hidden">
+            <ThemeToggle />
+            {isAuthenticated && <NotificationBell />}
+            <button
+              type="button"
+              onClick={() => setMobileNavOpen(!mobileNavOpen)}
+              className="flex h-11 w-11 items-center justify-center rounded-full border border-black/10 dark:border-line bg-white/80 dark:bg-panel text-[#1b4332] dark:text-ink cursor-pointer transition-colors"
+              aria-label="Toggle admin navigation"
+              aria-expanded={mobileNavOpen}
+            >
+              {mobileNavOpen ? <X size={21} aria-hidden="true" /> : <Menu size={21} aria-hidden="true" />}
+            </button>
           </div>
-          <button type="button" className="admin-menu-toggle" aria-label="Toggle admin navigation" aria-expanded={mobileNavOpen} aria-controls="admin-navigation" onClick={() => setMobileNavOpen(!mobileNavOpen)}>
-            {mobileNavOpen ? 'Close' : 'Menu'}
-          </button>
         </div>
 
-        <nav id="admin-navigation" className="admin-nav" aria-label="Admin navigation">
-          <button 
-            onClick={() => { setActiveTab('dashboard'); setMobileNavOpen(false); }}
-            className={`admin-nav-link flex items-center gap-2.5 ${activeTab === 'dashboard' ? 'active' : ''}`}
-          >
-            <LayoutDashboard className="h-4 w-4 shrink-0" />
-            <span>Dashboard</span>
-          </button>
-          <button 
-            onClick={() => { setActiveTab('pending'); setMobileNavOpen(false); }}
-            className={`admin-nav-link flex items-center gap-2.5 ${activeTab === 'pending' ? 'active' : ''}`}
-          >
-            <Clock className="h-4 w-4 shrink-0" />
-            <span className="flex-1 text-left">Suggestions</span>
-            {pendingCount > 0 && (
-              <span className="admin-nav-badge">{pendingCount}</span>
-            )}
-          </button>
-          <button 
-            onClick={() => { setActiveTab('library'); setMobileNavOpen(false); }}
-            className={`admin-nav-link flex items-center gap-2.5 ${activeTab === 'library' ? 'active' : ''}`}
-          >
-            <Leaf className="h-4 w-4 shrink-0" />
-            <span>All Herbs</span>
-          </button>
-          <button 
-            onClick={() => { setActiveTab('users'); setMobileNavOpen(false); }}
-            className={`admin-nav-link flex items-center gap-2.5 ${activeTab === 'users' ? 'active' : ''}`}
-          >
-            <Users className="h-4 w-4 shrink-0" />
-            <span>Users</span>
-          </button>
-          <button 
-            onClick={() => { setActiveTab('knowledgebase'); setMobileNavOpen(false); }}
-            className={`admin-nav-link flex items-center gap-2.5 ${activeTab === 'knowledgebase' ? 'active' : ''}`}
-          >
-            <BookOpen className="h-4 w-4 shrink-0" />
-            <span>Knowledge Base</span>
-          </button>
-          <button 
-            onClick={() => { setActiveTab('audit'); setMobileNavOpen(false); }}
-            className={`admin-nav-link flex items-center gap-2.5 ${activeTab === 'audit' ? 'active' : ''}`}
-          >
-            <ClipboardList className="h-4 w-4 shrink-0" />
-            <span>Audit Logs</span>
-          </button>
-        </nav>
+        {/* Mobile Navigation Floating Overlay (Exact Layout from user's screenshot) */}
+        {mobileNavOpen && (
+          <>
+            <div
+              className="fixed inset-0 top-[57px] z-40 bg-black/50 backdrop-blur-sm lg:hidden animate-in fade-in duration-200"
+              onClick={() => setMobileNavOpen(false)}
+              aria-hidden="true"
+            />
+            <div className="absolute top-full left-0 right-0 z-50 lg:hidden max-h-[calc(100dvh-4.5rem)] overflow-y-auto border-b border-line bg-panel/95 backdrop-blur-xl px-4 py-4 shadow-2xl animate-in fade-in slide-in-from-top-2 duration-200">
+              {/* Row 1: Theme Card */}
+              <div className="mb-3 rounded-xl border border-line bg-panel px-4 py-2.5">
+                <ThemeToggle variant="row" />
+              </div>
 
-        <div className="admin-sidebar-footer">
-          <button 
-            onClick={() => router.push('/')}
-            className="admin-nav-link subtle flex items-center gap-2"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            <span>Public Site</span>
-          </button>
-          <ThemeToggle className="admin-nav-link subtle flex items-center gap-2" />
-          <button
-            type="button"
-            onClick={handleLogout}
-            disabled={logoutPending}
-            aria-busy={logoutPending}
-            className="admin-nav-link subtle flex items-center gap-2 disabled:cursor-wait disabled:opacity-60"
-          >
-            <LogOut className="h-4 w-4 shrink-0" aria-hidden="true" />
-            <span>{logoutPending ? 'Logging out…' : 'Log out'}</span>
-          </button>
-          <div className="admin-user-chip border-t border-line pt-3 mt-2">
-            <span className="block font-bold text-ink">{user.name}</span>
-            <span className="text-[10px] uppercase tracking-wider font-extrabold">Administrator</span>
+              {/* Row 2: 2-Column Grid of Navigation Tabs */}
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { tab: 'dashboard', label: 'Dashboard' },
+                  { tab: 'pending', label: 'Suggestions', badge: pendingCount },
+                  { tab: 'library', label: 'All Herbs' },
+                  { tab: 'users', label: 'Users' },
+                  { tab: 'knowledgebase', label: 'Knowledge Base' },
+                  { tab: 'audit', label: 'Audit Logs' },
+                ].map(({ tab, label, badge }) => {
+                  const isActive = activeTab === tab;
+                  return (
+                    <button
+                      key={tab}
+                      type="button"
+                      onClick={() => { setActiveTab(tab as any); setMobileNavOpen(false); }}
+                      className={`rounded-xl px-4 py-2.5 text-left text-sm font-extrabold transition-all flex items-center justify-between cursor-pointer ${
+                        isActive
+                          ? 'bg-[#eef5f0] text-[#1b4332] ring-1 ring-[#2d6a4f]/20 dark:bg-soft dark:text-ink'
+                          : 'text-[#2d6a4f] hover:bg-[#eef5f0] dark:text-muted dark:hover:bg-soft'
+                      }`}
+                    >
+                      <span>{label}</span>
+                      {badge !== undefined && badge > 0 && (
+                        <span className="rounded-full bg-accent px-1.5 py-0.2 text-[10px] font-black text-white">{badge}</span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Bottom Actions */}
+              <div className="mt-3 space-y-2 border-t border-black/10 pt-3 dark:border-line">
+                <div className="flex w-full items-center gap-3 rounded-xl bg-white/60 px-3 py-2.5 text-left text-sm font-extrabold text-[#1b4332] dark:bg-soft dark:text-ink">
+                  <UserRound size={18} aria-hidden="true" className="shrink-0 text-[#40916c]" />
+                  <span className="min-w-0">
+                    <span className="block truncate">{user.name}</span>
+                    <span className="block text-xs font-semibold capitalize text-[#2d6a4f]/75 dark:text-muted">Admin</span>
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => { setMobileNavOpen(false); router.push('/'); }}
+                    className="flex items-center justify-center gap-2 rounded-xl border border-[#40916c]/25 px-3 py-2.5 text-sm font-extrabold text-[#2d6a4f] dark:text-[#74c69d] cursor-pointer"
+                  >
+                    <ArrowLeft size={16} aria-hidden="true" />
+                    Public Site
+                  </button>
+
+                  <Link
+                    href="/suggest"
+                    onClick={() => setMobileNavOpen(false)}
+                    className="flex items-center justify-center gap-2 rounded-xl border border-[#40916c]/25 px-3 py-2.5 text-sm font-extrabold text-[#2d6a4f] dark:text-[#74c69d]"
+                  >
+                    <Sprout size={16} aria-hidden="true" />
+                    Suggest Herb
+                  </Link>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => { setMobileNavOpen(false); handleLogout(); }}
+                  disabled={logoutPending}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-sm font-extrabold text-[#b34f35] transition-colors hover:bg-[#b34f35]/10 dark:text-[#e58a70] cursor-pointer disabled:opacity-50"
+                >
+                  <LogOut size={16} aria-hidden="true" />
+                  {logoutPending ? 'Logging out…' : 'Log Out'}
+                </button>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* Desktop Sidebar Body */}
+        <div className="hidden lg:flex lg:flex-1 lg:flex-col lg:min-h-0">
+          <nav id="admin-navigation" className="admin-nav" aria-label="Admin navigation">
+            <button 
+              onClick={() => setActiveTab('dashboard')}
+              className={`admin-nav-link flex items-center gap-2.5 ${activeTab === 'dashboard' ? 'active' : ''}`}
+            >
+              <LayoutDashboard className="h-4 w-4 shrink-0" />
+              <span>Dashboard</span>
+            </button>
+            <button 
+              onClick={() => setActiveTab('pending')}
+              className={`admin-nav-link flex items-center gap-2.5 ${activeTab === 'pending' ? 'active' : ''}`}
+            >
+              <Clock className="h-4 w-4 shrink-0" />
+              <span className="flex-1 text-left">Suggestions</span>
+              {pendingCount > 0 && (
+                <span className="admin-nav-badge">{pendingCount}</span>
+              )}
+            </button>
+            <button 
+              onClick={() => setActiveTab('library')}
+              className={`admin-nav-link flex items-center gap-2.5 ${activeTab === 'library' ? 'active' : ''}`}
+            >
+              <Leaf className="h-4 w-4 shrink-0" />
+              <span>All Herbs</span>
+            </button>
+            <button 
+              onClick={() => setActiveTab('users')}
+              className={`admin-nav-link flex items-center gap-2.5 ${activeTab === 'users' ? 'active' : ''}`}
+            >
+              <Users className="h-4 w-4 shrink-0" />
+              <span>Users</span>
+            </button>
+            <button 
+              onClick={() => setActiveTab('knowledgebase')}
+              className={`admin-nav-link flex items-center gap-2.5 ${activeTab === 'knowledgebase' ? 'active' : ''}`}
+            >
+              <BookOpen className="h-4 w-4 shrink-0" />
+              <span>Knowledge Base</span>
+            </button>
+            <button 
+              onClick={() => setActiveTab('audit')}
+              className={`admin-nav-link flex items-center gap-2.5 ${activeTab === 'audit' ? 'active' : ''}`}
+            >
+              <ClipboardList className="h-4 w-4 shrink-0" />
+              <span>Audit Logs</span>
+            </button>
+          </nav>
+
+          <div className="admin-sidebar-footer">
+            <button 
+              onClick={() => router.push('/')}
+              className="admin-nav-link subtle flex items-center gap-2"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              <span>Public Site</span>
+            </button>
+            <div className="admin-theme-box my-1 rounded-xl border border-line bg-soft/50 p-2">
+              <ThemeToggle variant="row" className="px-1" />
+            </div>
+            <button
+              type="button"
+              onClick={handleLogout}
+              disabled={logoutPending}
+              aria-busy={logoutPending}
+              className="admin-nav-link subtle flex items-center gap-2 disabled:cursor-wait disabled:opacity-60"
+            >
+              <LogOut className="h-4 w-4 shrink-0" aria-hidden="true" />
+              <span>{logoutPending ? 'Logging out…' : 'Log out'}</span>
+            </button>
+            <div className="admin-user-chip border-t border-line pt-3 mt-2">
+              <span className="block font-bold text-ink">{user.name}</span>
+              <span className="text-[10px] uppercase tracking-wider font-extrabold text-muted">Administrator</span>
+            </div>
           </div>
         </div>
       </aside>

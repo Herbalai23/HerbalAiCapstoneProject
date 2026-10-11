@@ -16,10 +16,10 @@ export default function Home() {
         <HomeHero />
         <HomeEvidencePreview />
 
-        <section className="px-6 py-12 lg:py-14">
+        <section className="px-5 py-12 sm:px-6 lg:py-16">
           <div className="mx-auto max-w-7xl">
-            <h2 className="mb-8 font-serif-custom text-4xl font-semibold text-ink md:text-5xl">Why Herbal-Ai?</h2>
-            <div className="grid gap-5 border-y border-line py-6 md:grid-cols-3 md:gap-8">
+            <h2 className="mb-8 font-serif-custom text-3xl font-semibold text-ink sm:text-4xl md:text-5xl">Why Herbal-Ai?</h2>
+            <div className="grid gap-4 sm:gap-6 md:grid-cols-3">
               <FeatureCard icon={<BookOpen />} title="Preserving Heritage">Digitizing traditional Philippine herbal knowledge for future generations and making it accessible worldwide.</FeatureCard>
               <FeatureCard icon={<Bot />} title="Source-Grounded Assistant">Ask questions about preparation, dosage records, and safety notes connected to the herbal library.</FeatureCard>
               <FeatureCard icon={<ShieldCheck />} title="Evidence Made Visible">See official listings, source records, and safety boundaries without treating education as medical advice.</FeatureCard>
@@ -54,5 +54,15 @@ export default function Home() {
 }
 
 function FeatureCard({ icon, title, children }: { icon: React.ReactNode; title: string; children: React.ReactNode }) {
-  return <div><div className="mb-5 flex h-11 w-11 items-center justify-center rounded-xl bg-brand text-white [&>svg]:h-5 [&>svg]:w-5">{icon}</div><div><h3 className="mb-2 text-lg font-bold text-ink">{title}</h3><p className="text-base leading-7 text-muted">{children}</p></div></div>;
+  return (
+    <div className="flex flex-col justify-between rounded-2xl border border-line bg-panel p-6 shadow-xs transition-all hover:border-line-strong hover:shadow-sm">
+      <div>
+        <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-brand text-white [&>svg]:h-6 [&>svg]:w-6">
+          {icon}
+        </div>
+        <h3 className="mb-2 text-lg font-bold text-ink">{title}</h3>
+        <p className="text-sm leading-relaxed text-muted">{children}</p>
+      </div>
+    </div>
+  );
 }

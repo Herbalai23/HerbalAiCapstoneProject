@@ -21,6 +21,12 @@ const isSource = (value: unknown): value is HerbSource => isObject(value)
   && Array.isArray(value.supports) && value.supports.every((claim) => typeof claim === 'string')
   && ['publisher', 'url', 'citation', 'publishedAt'].every((field) => value[field] == null || typeof value[field] === 'string');
 
+const curatedHerbImages: Record<string, string> = {
+  bayabas: '/images/bayabas.png',
+  lagundi: '/images/lagundi.png',
+  sambong: '/images/sambong.png',
+};
+
 export function aboutHerbRecords(payload: unknown): AboutHerb[] {
   if (!isObject(payload) || payload.status !== 'success' || !isObject(payload.data) || !Array.isArray(payload.data.herbs)) return [];
   const records = payload.data.herbs.filter((value): value is Record<string, unknown> => isObject(value)
@@ -30,6 +36,7 @@ export function aboutHerbRecords(payload: unknown): AboutHerb[] {
   return displayOrder.flatMap((name) => {
     const record = records.find((value) => text(value.localName).toLowerCase() === name.toLowerCase());
     if (!record) return [];
+    const localNameLower = text(record.localName).toLowerCase();
     return [{
       id: text(record.id),
       name: text(record.localName),
@@ -38,7 +45,7 @@ export function aboutHerbRecords(payload: unknown): AboutHerb[] {
       indications: [text(record.medicinalUses)],
       preparation: `${text(record.preparationMethod)} Dosage notes: ${text(record.dosage)}`,
       safetyNotes: text(record.warnings) || 'No safety notes are attached to this record. A listed plant is not a guarantee of effectiveness or safety.',
-      image: text(record.imageUrl),
+      image: curatedHerbImages[localNameLower] || text(record.imageUrl),
       sources: Array.isArray(record.sources) ? record.sources.filter(isSource) : [],
     }];
   });

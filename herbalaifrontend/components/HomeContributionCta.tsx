@@ -11,7 +11,12 @@ export default function HomeContributionCta() {
     <section className="px-6 py-16">
       <div className="mx-auto grid max-w-7xl grid-cols-1 items-center gap-10 md:grid-cols-2">
         <div className="relative aspect-video overflow-hidden rounded-2xl border border-line bg-soft shadow-sm md:aspect-[4/3]">
-          <OptimizedFillImage src="/images/lagundi.png" alt="Lagundi leaves representing traditional herbal knowledge sharing" sizes="(max-width: 768px) 100vw, 50vw" className="h-full w-full object-cover" />
+          <OptimizedFillImage
+            src="/images/community-herb-contribution.jpg"
+            alt="Local Filipino community member harvesting fresh medicinal herbs into a traditional bilao tray with herbal documentation notes"
+            sizes="(max-width: 768px) 100vw, 50vw"
+            className="h-full w-full object-cover"
+          />
         </div>
         <div className="space-y-6">
           <h2 className="font-serif-custom text-4xl font-semibold leading-tight text-ink md:text-5xl">Help us preserve our history</h2>
