@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
 import dynamic from 'next/dynamic';
 import { useAuth } from '../../context/AuthContext';
@@ -239,7 +239,7 @@ export default function AdminPage() {
   const [expandedKbIds, setExpandedKbIds] = useState<Set<string>>(new Set());
   const [copiedKbId, setCopiedKbId] = useState<string | null>(null);
 
-  const availableKbCategories = React.useMemo(() => {
+  const availableKbCategories = useMemo(() => {
     const categories = new Set<string>();
     kbList.forEach((item) => {
       if (item.category && item.category.trim()) {
@@ -249,7 +249,7 @@ export default function AdminPage() {
     return Array.from(categories).sort();
   }, [kbList]);
 
-  const filteredKbList = React.useMemo(() => {
+  const filteredKbList = useMemo(() => {
     return kbList.filter((item) => {
       if (kbCategoryFilter !== 'ALL' && (item.category || '').trim() !== kbCategoryFilter) {
         return false;

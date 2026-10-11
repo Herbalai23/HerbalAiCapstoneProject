@@ -40,6 +40,7 @@ const fixture = ({ logout = async () => {}, role = 'admin', loading = false } = 
     ...React,
     useEffect() {},
     useCallback: callback => callback,
+    useMemo: factory => factory(),
     useState(initial) {
       const index = stateCursor++;
       if (!states.has(index)) states.set(index, typeof initial === 'function' ? initial() : initial);
