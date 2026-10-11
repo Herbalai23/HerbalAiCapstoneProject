@@ -239,10 +239,7 @@ export default function Navbar() {
               aria-hidden="true"
             />
             <div className="absolute top-full left-0 right-0 z-50 lg:hidden max-h-[calc(100dvh-4.5rem)] overflow-y-auto border-b border-line bg-panel/95 backdrop-blur-xl px-4 py-4 shadow-2xl animate-in fade-in slide-in-from-top-2 duration-200">
-            <div className="mb-3 rounded-xl border border-line bg-panel px-4 py-2.5">
-              <ThemeToggle variant="row" />
-            </div>
-            <div className="grid grid-cols-2 gap-2">
+            <nav className="flex flex-col gap-1.5" aria-label="Mobile site navigation">
               {allLinks.map((link) => {
                 const isActive = pathname === link.href;
                 return (
@@ -250,7 +247,7 @@ export default function Navbar() {
                     key={link.href}
                     href={link.href}
                     onClick={() => setIsMobileMenuOpen(false)}
-                    className={`rounded-xl px-3 py-2.5 text-center text-sm font-extrabold transition-all ${
+                    className={`flex min-h-[44px] items-center rounded-xl px-4 py-2.5 text-sm font-bold transition-all ${
                       isActive
                         ? 'bg-[#eef5f0] text-[#1b4332] ring-1 ring-[#2d6a4f]/20 dark:bg-soft dark:text-ink'
                         : 'text-[#2d6a4f] hover:bg-[#eef5f0] dark:text-muted dark:hover:bg-soft'
@@ -260,9 +257,9 @@ export default function Navbar() {
                   </Link>
                 );
               })}
-            </div>
+            </nav>
 
-            <div className="mt-3 space-y-2 border-t border-black/10 pt-3 dark:border-line">
+            <div className="mt-4 space-y-2 border-t border-black/10 pt-4 dark:border-line">
               {loading ? (
                 <span role="status" className="block text-center text-sm text-muted">Checking session…</span>
               ) : sessionUnavailable && !isAuthenticated ? (
@@ -276,31 +273,31 @@ export default function Navbar() {
                       setIsProfileEditorOpen(true);
                     }}
                     aria-label="Account settings"
-                    className="flex w-full items-center gap-3 rounded-xl bg-white/60 px-3 py-2.5 text-left text-sm font-extrabold text-[#1b4332] dark:bg-soft dark:text-ink"
+                    className="flex min-h-[48px] w-full items-center gap-3 rounded-xl bg-white/60 px-4 py-2.5 text-left text-sm font-bold text-[#1b4332] dark:bg-soft dark:text-ink"
                   >
                     <UserRound size={18} aria-hidden="true" className="shrink-0 text-[#40916c]" />
-                    <span className="min-w-0">
+                    <span className="min-w-0 flex-1">
                       <span className="block truncate">{user?.name || 'Profile'}</span>
                       <span className="block text-xs font-semibold capitalize text-[#2d6a4f]/75 dark:text-muted">{user?.role || 'Member'}</span>
                     </span>
                   </button>
 
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="flex flex-col gap-2 pt-1">
                     {isAdmin && (
                       <Link
                         href="/admin"
                         onClick={() => setIsMobileMenuOpen(false)}
-                        className="flex items-center justify-center gap-2 rounded-xl border border-[#40916c]/25 px-3 py-2.5 text-sm font-extrabold text-[#2d6a4f] dark:text-[#74c69d]"
+                        className="flex min-h-[44px] items-center gap-2.5 rounded-xl border border-[#40916c]/25 px-4 py-2.5 text-sm font-bold text-[#2d6a4f] dark:text-[#74c69d]"
                       >
                         <Shield size={16} aria-hidden="true" />
-                        Admin
+                        Admin Console
                       </Link>
                     )}
 
                     <Link
                       href="/suggest"
                       onClick={() => setIsMobileMenuOpen(false)}
-                      className="flex items-center justify-center gap-2 rounded-xl border border-[#40916c]/25 px-3 py-2.5 text-sm font-extrabold text-[#2d6a4f] dark:text-[#74c69d]"
+                      className="flex min-h-[44px] items-center gap-2.5 rounded-xl border border-[#40916c]/25 px-4 py-2.5 text-sm font-bold text-[#2d6a4f] dark:text-[#74c69d]"
                     >
                       <Sprout size={16} aria-hidden="true" />
                       Suggest Herb
@@ -312,7 +309,7 @@ export default function Navbar() {
                       setIsMobileMenuOpen(false);
                       handleLogout();
                     }}
-                    className="flex w-full items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-sm font-extrabold text-[#b34f35] transition-colors hover:bg-[#b34f35]/10 dark:text-[#e58a70]"
+                    className="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold text-[#b34f35] transition-colors hover:bg-[#b34f35]/10 dark:text-[#e58a70]"
                   >
                     <LogOut size={16} aria-hidden="true" />
                     Log Out
