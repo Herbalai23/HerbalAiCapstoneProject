@@ -5,6 +5,7 @@ vi.mock('../src/config/env.js', () => ({ ENV: {
   GEMINI_API_KEY: 'test-key-no-network',
   DR_AI_CHAT_MODELS: ['first-model', 'second-model', 'third-model'],
   DR_AI_MODEL_TIMEOUT_MS: 30,
+  DR_AI_MAX_OUTPUT_TOKENS: 4096,
   DR_AI_EMBEDDING_TIMEOUT_MS: 30,
   DR_AI_MAX_MODEL_ATTEMPTS: 2,
   DR_AI_MODEL_COOLDOWN_MS: 60_000,
@@ -19,9 +20,45 @@ afterEach(() => {
   resetGeminiFallbackState();
   vi.unstubAllGlobals();
   vi.useRealTimers();
+  vi.restoreAllMocks();
 });
 
 describe('Gemini transport fallback (no live provider calls)', () => {
+  it('records a JSON token-limit rejection without logging partial output or retrying', async () => {
+    const logger = vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    const payload = { ...content('PRIVATE-PARTIAL-ANSWER'), usageMetadata: { promptTokenCount: 3089, candidatesTokenCount: 517, thoughtsTokenCount: 1531, totalTokenCount: 5137 } };
+    Object.assign(payload.candidates[0]!, { finishReason: 'MAX_TOKENS' });
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify(payload)));
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(generateChatResponse('PRIVATE-QUESTION', 'PRIVATE-CONTEXT')).rejects.toMatchObject({ code: 'AI_RESPONSE_INCOMPLETE' });
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(JSON.parse(logger.mock.calls[0]![0])).toMatchObject({ transport: 'json', maxOutputTokens: 4096, finishReason: 'MAX_TOKENS', thoughtsTokens: 1531 });
+    expect(JSON.stringify(logger.mock.calls)).not.toContain('PRIVATE-');
+  });
+
+  it('records a terminal stream rejection before discarding buffered partial text', async () => {
+    const logger = vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    const partial = content('PRIVATE-PARTIAL-ANSWER');
+    Object.assign(partial.candidates[0]!, { finishReason: undefined });
+    const terminal = content('PRIVATE-REMAINDER');
+    Object.assign(terminal.candidates[0]!, { finishReason: 'MAX_TOKENS' });
+    const fetchMock = vi.fn().mockResolvedValue(new Response(`data: ${JSON.stringify(partial)}\n\ndata: ${JSON.stringify(terminal)}\n\n`, { headers: { 'Content-Type': 'text/event-stream' } }));
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(generateChatResponseStream('PRIVATE-QUESTION', 'PRIVATE-CONTEXT').next()).rejects.toMatchObject({ code: 'AI_RESPONSE_INCOMPLETE' });
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(JSON.parse(logger.mock.calls[0]![0])).toMatchObject({ transport: 'stream', finishReason: 'MAX_TOKENS' });
+    expect(JSON.stringify(logger.mock.calls)).not.toContain('PRIVATE-');
+  });
+
+  it('accepts a normal STOP with reasoning and answer usage above the old 2048 cap', async () => {
+    const payload = { ...content('Complete source-grounded answer'), usageMetadata: { promptTokenCount: 3089, candidatesTokenCount: 479, thoughtsTokenCount: 1755, totalTokenCount: 5323 } };
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify(payload)));
+    vi.stubGlobal('fetch', fetchMock);
+    expect(await generateChatResponse('Question', 'Context')).toBe('Complete source-grounded answer');
+    expect(JSON.parse(fetchMock.mock.calls[0]?.[1].body).generationConfig.maxOutputTokens).toBe(4096);
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
   it('rejects a blocked prompt without falling back or exposing provider details', async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ promptFeedback: { blockReason: 'SAFETY' } })));
     vi.stubGlobal('fetch', fetchMock);
@@ -67,6 +104,7 @@ describe('Gemini transport fallback (no live provider calls)', () => {
     vi.stubGlobal('fetch', fetchMock);
     await generateChatResponse('Explain preparation step by step', 'Recorded preparation text');
     const request = JSON.parse(fetchMock.mock.calls[0]?.[1].body);
+    expect(request.generationConfig.maxOutputTokens).toBe(4096);
     const text = request.contents.at(-1).parts[0].text;
     expect(text).toContain('Every numbered action must be traceable to the retrieved preparation text');
     expect(text).toContain('Keep alternative preparations in separate lists');
@@ -79,6 +117,7 @@ describe('Gemini transport fallback (no live provider calls)', () => {
     vi.stubGlobal('fetch', fetchMock);
     for await (const chunk of generateChatResponseStream('Explain preparation step by step', 'Recorded preparation text')) expect(chunk).toBe('Mocked response');
     const request = JSON.parse(fetchMock.mock.calls[0]?.[1].body);
+    expect(request.generationConfig.maxOutputTokens).toBe(4096);
     const text = request.contents.at(-1).parts[0].text;
     expect(text).toContain('Every numbered action must be traceable to the retrieved preparation text');
     expect(text).toContain('Keep alternative preparations in separate lists');

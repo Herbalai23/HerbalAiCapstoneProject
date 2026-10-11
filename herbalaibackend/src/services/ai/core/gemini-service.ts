@@ -5,6 +5,7 @@ import { DR_AI_SYSTEM_PROMPT } from "../../../config/drAiSystemPrompt.js";
 import { awaitAiOperation, createAiDeadline, iterateAiOperation } from "./request-lifetime.js";
 import type { AiRequestOptions } from "./request-lifetime.js";
 import { AiResponseError, assertChunkNotBlocked, assertResponseComplete } from './response-completion.js';
+import { recordGenerationOutcome } from './generation-telemetry.js';
 
 const genAI = new GoogleGenerativeAI(ENV.GEMINI_API_KEY || "");
 
@@ -66,7 +67,7 @@ const createChat = (modelName: string, history: Content[]) => {
       temperature: 0.4,
       topK: 40,
       topP: 0.95,
-      maxOutputTokens: 2048,
+      maxOutputTokens: ENV.DR_AI_MAX_OUTPUT_TOKENS,
     },
     safetySettings: [
       {
@@ -197,10 +198,7 @@ export async function generateChatResponse(
 
       const result = await awaitAiOperation(() => chat.sendMessage(fullPrompt, { signal: deadline.signal }), deadline.signal);
 
-      // Log token usage for tracking
-      if (result.response.usageMetadata) {
-        console.log(`📊 AI Token Usage [${modelName}] | Prompt: ${result.response.usageMetadata.promptTokenCount} | Response: ${result.response.usageMetadata.candidatesTokenCount} | Total: ${result.response.usageMetadata.totalTokenCount}`);
-      }
+      recordGenerationOutcome(modelName, 'json', ENV.DR_AI_MAX_OUTPUT_TOKENS, result.response);
 
       assertChunkNotBlocked(result.response);
       const text = result.response.text();
@@ -248,15 +246,18 @@ export async function* generateChatResponseStream(
         return stream;
       }, deadline.signal);
       for await (const chunk of iterateAiOperation(result.stream, deadline.signal)) {
-        assertChunkNotBlocked(chunk);
+        try {
+          assertChunkNotBlocked(chunk);
+        } catch (error) {
+          recordGenerationOutcome(modelName, 'stream', ENV.DR_AI_MAX_OUTPUT_TOKENS, chunk);
+          throw error;
+        }
         const text = chunk.text();
         if (text) answer += text;
       }
 
       const response = await awaitAiOperation(() => result.response, deadline.signal);
-      if (response.usageMetadata) {
-        console.log(`📊 AI Token Usage [${modelName}] | Prompt: ${response.usageMetadata.promptTokenCount} | Response: ${response.usageMetadata.candidatesTokenCount} | Total: ${response.usageMetadata.totalTokenCount}`);
-      }
+      recordGenerationOutcome(modelName, 'stream', ENV.DR_AI_MAX_OUTPUT_TOKENS, response);
       assertResponseComplete(response, answer);
       recordModelSuccess(modelName, index + 1);
       yield answer;

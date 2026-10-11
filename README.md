@@ -95,9 +95,12 @@ FRONTEND_URL="http://localhost:3000"
 GEMINI_API_KEY="your-gemini-api-key"
 DR_AI_CHAT_MODELS="gemini-3.6-flash,gemini-3.1-flash-lite,gemini-3.8-flash,gemini-3.7-flash"
 DR_AI_MODEL_TIMEOUT_MS=7000
+DR_AI_MAX_OUTPUT_TOKENS=4096
 DR_AI_MAX_MODEL_ATTEMPTS=4
 DR_AI_MODEL_COOLDOWN_MS=60000
 ```
+
+`DR_AI_MAX_OUTPUT_TOKENS` defaults to 4096 and is clamped to 2048–8192. Thinking models use generation headroom for both reasoning and visible answers, so a short visible reply can still reach the output limit. The larger default does not relax source-grounding, safety, completion validation, credit refunds or request deadlines. Generation logs record only bounded token counts and normalized terminal reasons, not prompts, answers, thoughts or credentials. Increase allowance only after checking provider usage and latency; a successful model response does not establish medical accuracy.
 
 Initialize the database and load the configured seed catalog:
 ```bash
