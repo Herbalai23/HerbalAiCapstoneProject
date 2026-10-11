@@ -3,7 +3,9 @@ import { safeAuthCallback } from '../../../../../lib/auth-redirect';
 
 export async function POST(request: NextRequest) {
   const backendApi = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api').replace(/\/$/, '');
-  if (request.headers.get('origin') !== new URL(backendApi).origin) {
+  const signInOrigin = request.headers.get('origin');
+  const allowedOrigins = [new URL(request.url).origin, new URL(backendApi).origin];
+  if (!signInOrigin || !allowedOrigins.includes(signInOrigin)) {
     return NextResponse.json({ message: 'Invalid sign-in origin.' }, { status: 403 });
   }
 

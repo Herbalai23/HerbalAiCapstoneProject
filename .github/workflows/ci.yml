@@ -160,7 +160,7 @@ jobs:
 
       - name: Run authentication feedback regressions
         working-directory: herbalaifrontend
-        run: node --test ../scripts/auth-feedback.test.mjs ../scripts/custom-domain-auth-redirect.test.mjs
+        run: node --test ../scripts/auth-feedback.test.mjs ../scripts/custom-domain-auth-redirect.test.mjs ../scripts/google-oauth-domain.test.mjs
 
       - name: Run administrator logout regressions
         working-directory: herbalaifrontend
