@@ -130,6 +130,7 @@ function MessengerContent() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const prependingMessagesRef = useRef(false);
+  const isInitialLoadRef = useRef(true);
   const conversationQueryRef = useRef(0);
   const conversationEventsRef = useRef<Map<number, ChatMessage> | null>(null);
   const userQueryRef = useRef(0);
@@ -313,7 +314,16 @@ function MessengerContent() {
       prependingMessagesRef.current = false;
       return;
     }
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (messages.length === 0) return;
+
+    if (isInitialLoadRef.current) {
+      isInitialLoadRef.current = false;
+      // Instant jump to bottom when first opening a conversation, eliminating long sliding animation
+      messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
+    } else {
+      // Smooth scroll for dynamically sent or received messages
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
   }, [messages]);
 
   const refreshHistory = useCallback(async (contact: UserProfile) => {
@@ -343,6 +353,7 @@ function MessengerContent() {
   }, [refreshConversations, refreshHistory]);
 
   const openConversation = useCallback(async (contact: UserProfile) => {
+    isInitialLoadRef.current = true;
     activeContactRef.current = contact;
     setActiveContact(contact);
     setLoadingMessages(true);
@@ -353,7 +364,12 @@ function MessengerContent() {
     setFilePreviewUrl(null);
     setEditingMessageId(null);
     setInput('');
-    inputRef.current?.focus();
+
+    // Only auto-focus on desktop devices (width >= 768px) to prevent mobile virtual keyboard
+    // from unexpectedly popping up and pushing the whole screen upward.
+    if (typeof window !== 'undefined' && window.innerWidth >= 768) {
+      inputRef.current?.focus();
+    }
 
     await refreshHistory(contact);
     if (activeContactRef.current?.id !== contact.id) return;
@@ -467,7 +483,9 @@ function MessengerContent() {
       alert('Failed to send message. Please try again.');
     } finally {
       setIsSending(false);
-      inputRef.current?.focus();
+      if (typeof window !== 'undefined' && window.innerWidth >= 768) {
+        inputRef.current?.focus();
+      }
     }
   };
 
@@ -538,7 +556,7 @@ function MessengerContent() {
   if (!user) return null;
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-canvas font-sans text-ink">
+    <div className="flex h-[100dvh] flex-col overflow-hidden bg-canvas font-sans text-ink">
       <Navbar />
       <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">
         {liveAnnouncement}

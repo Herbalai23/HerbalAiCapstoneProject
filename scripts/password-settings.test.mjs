@@ -358,8 +358,8 @@ test('public recovery fallback stays neutral when no delivery message is returne
 test('password link form covers setup and recovery while preserving new-password fields', () => {
   const component = load(resetCompiled, React, {}, undefined, pageOverrides('TEST-only-reset-token'));
   const markup = renderToStaticMarkup(React.createElement(component));
-  assert.match(markup, /Set Your Herbal-Ai Password/);
-  assert.match(markup, /Save Herbal-Ai Password/);
+  assert.match(markup, /Set your password/i);
+  assert.match(markup, /(Set|Save) password/i);
   assert.match(markup, /does not change your Google password/);
   assert.match(markup, /still sign in with Google/);
   assert.match(markup, /signs you out on all devices/);

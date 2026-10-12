@@ -64,6 +64,8 @@ function ChatContent() {
   const processedInitialQuery = useRef(false);
   const activeRequestRef = useRef<AbortController | null>(null);
   const mountedRef = useRef(true);
+  const isInitialMountRef = useRef(true);
+  const userJustSubmittedRef = useRef(false);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -100,7 +102,28 @@ function ChatContent() {
   // Handle auto-scroll to bottom of conversation
   useEffect(() => {
     const messageList = messageListRef.current;
-    messageList?.scrollTo({ top: messageList.scrollHeight, behavior: 'smooth' });
+    if (!messageList) return;
+
+    if (isInitialMountRef.current) {
+      isInitialMountRef.current = false;
+      return;
+    }
+
+    if (userJustSubmittedRef.current) {
+      userJustSubmittedRef.current = false;
+      messageList.scrollTo({ top: messageList.scrollHeight, behavior: 'smooth' });
+      return;
+    }
+
+    const isNearBottom = messageList.scrollHeight - messageList.scrollTop - messageList.clientHeight < 160;
+
+    if (isSending) {
+      if (isNearBottom) {
+        messageList.scrollTo({ top: messageList.scrollHeight, behavior: 'auto' });
+      }
+    } else if (isNearBottom) {
+      messageList.scrollTo({ top: messageList.scrollHeight, behavior: 'smooth' });
+    }
   }, [messages, isSending]);
 
   // Check auth and redirect if not authenticated
@@ -115,6 +138,7 @@ function ChatContent() {
   const handleSendQuery = React.useCallback(async (queryText: string) => {
     if (!queryText.trim() || isSending || activeRequestRef.current || !mountedRef.current) return;
 
+    userJustSubmittedRef.current = true;
     const controller = new AbortController();
     activeRequestRef.current = controller;
 

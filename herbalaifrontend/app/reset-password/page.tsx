@@ -3,20 +3,37 @@
 import React, { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { Eye, EyeOff } from 'lucide-react';
 import api from '../../lib/axios';
 import { requestError, responseMessage } from '../../lib/request-feedback';
+import AuthBrandPanel from '../../components/AuthBrandPanel';
+import { ThemeToggle } from '../../components/DisplayPreferences';
 
 function ResetPasswordForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get('token');
 
+  // Maintain precise state order for test harness compatibility
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState<string | null>(token ? null : 'Invalid reset link. Token is missing.');
   const [success, setSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
   const tokenRejected = error === 'Invalid or expired password reset token.';
+
+  // Dynamic password strength evaluation matching sign-up style
+  const getPasswordStrength = () => {
+    if (password.length === 0) return { label: 'Enter at least 8 characters', colorClass: 'bg-[#6a7282]/20', width: 'w-0' };
+    if (password.length < 8) return { label: 'Too Short (Weak)', colorClass: 'bg-rose-500', width: 'w-1/3' };
+    if (password.length < 12) return { label: 'Safe (Medium)', colorClass: 'bg-[#c9a040]', width: 'w-2/3' };
+    return { label: 'Strong', colorClass: 'bg-[#40916c]', width: 'w-full' };
+  };
+
+  const strength = getPasswordStrength();
 
   useEffect(() => {
     if (!success) return;
@@ -75,26 +92,20 @@ function ResetPasswordForm() {
   };
 
   return (
-    <main className="flex min-h-screen flex-col lg:flex-row bg-transparent font-sans">
-      {/* Left side - brand */}
-      <div className="flex flex-col justify-center items-center lg:items-start lg:w-1/2 p-8 lg:p-20 bg-[#1b4332] text-[#ffffff] text-center lg:text-left border-b lg:border-b-0 lg:border-r border-green-700/20">
-        <div className="flex items-center justify-center w-24 h-24 rounded-full bg-[#ffffff] text-4xl mb-6 shadow-md">
-          🌿
-        </div>
-        <h1 className="text-4xl lg:text-6xl font-serif-custom italic font-normal tracking-tight mb-4">Herbal-Ai</h1>
-        <p className="text-lg lg:text-xl font-bold opacity-90 max-w-md">
-          Create or reset your Herbal-Ai password to sign in to your account.
-        </p>
-      </div>
+    <main className="auth-shell grid min-h-svh grid-cols-1 bg-canvas font-sans lg:h-svh lg:grid-cols-[minmax(23rem,0.92fr)_minmax(32rem,1.08fr)] lg:overflow-hidden">
+      {/* Left side - Reused Brand Panel from Signin / Signup */}
+      <AuthBrandPanel mode="reset-password" />
 
-      {/* Right side - form */}
-      <div className="flex flex-col justify-center items-center lg:w-1/2 p-6 lg:p-12">
-        <div className="w-full max-w-md glass-card bg-white/60 dark:bg-panel/80 backdrop-blur-md border border-black/10 dark:border-line rounded-3xl p-6 lg:p-8 shadow-xl">
-          <h2 className="text-2xl lg:text-3xl font-extrabold text-[#1b4332] dark:text-ink mb-2">Set Your Herbal-Ai Password</h2>
+      {/* Right side - Form pane */}
+      <div className="auth-form-pane relative flex min-w-0 items-center justify-center px-5 pb-8 pt-20 lg:h-svh lg:overflow-hidden lg:px-8 lg:pb-5 lg:pt-16">
+        <ThemeToggle className="auth-theme-toggle" />
+        <div className="auth-form-card glass-card">
+          <p className="auth-form-eyebrow">Account security</p>
+          <h2 className="text-2xl lg:text-3xl font-extrabold text-[#1b4332] dark:text-ink mb-2">Set your password</h2>
           <p className="text-sm font-semibold text-[#6a7282] dark:text-muted mb-2">
             Use at least 8 characters. Saving your password signs you out on all devices.
           </p>
-          <p className="text-sm font-semibold text-[#6a7282] dark:text-muted mb-6">
+          <p className="text-xs font-semibold text-[#6a7282] dark:text-muted mb-6 bg-white/40 dark:bg-soft/50 p-3 rounded-xl border border-black/5 dark:border-line">
             This password is only for Herbal-Ai. It does not change your Google password. If Google is linked to your account, you can still sign in with Google.
           </p>
 
@@ -119,60 +130,89 @@ function ResetPasswordForm() {
           {!success && !tokenRejected && (
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-sm font-extrabold text-[#1b4332] dark:text-ink mb-2" htmlFor="password">
+                <label className="block text-sm font-extrabold text-[#1b4332] dark:text-ink mb-1" htmlFor="password">
                   New Password
                 </label>
-                <input
-                  id="password"
-                  type="password"
-                  autoComplete="new-password"
-                  minLength={8}
-                  required
-                  disabled={!token || loading}
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full border border-black/10 dark:border-line bg-white/70 dark:bg-soft rounded-2xl px-4 py-3 text-sm text-[#1b4332] dark:text-ink focus:outline-none focus:ring-2 focus:ring-[#40916c]"
-                />
+                <div className="relative">
+                  <input
+                    id="password"
+                    type={showPassword ? 'text' : 'password'}
+                    autoComplete="new-password"
+                    minLength={8}
+                    required
+                    disabled={!token || loading}
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full border border-black/10 dark:border-line bg-white/70 dark:bg-soft rounded-2xl px-4 py-2.5 pr-12 text-sm text-[#1b4332] dark:text-ink focus:outline-none focus:ring-2 focus:ring-[#40916c]"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((visible) => !visible)}
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    aria-pressed={showPassword}
+                    className="absolute inset-y-0 right-1 flex w-11 items-center justify-center rounded-xl text-[#6a7282] hover:text-[#1b4332] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#40916c] dark:text-muted dark:hover:text-ink"
+                  >
+                    {showPassword ? <EyeOff aria-hidden="true" className="h-5 w-5" /> : <Eye aria-hidden="true" className="h-5 w-5" />}
+                  </button>
+                </div>
+                {/* Strength indicator matching sign-up */}
+                <div className="mt-2 space-y-1">
+                  <div className="h-1.5 w-full bg-gray-200 dark:bg-line rounded-full overflow-hidden">
+                    <div className={`h-full ${strength.colorClass} ${strength.width} transition-all duration-300`} />
+                  </div>
+                  <p className="text-xs text-gray-500 dark:text-muted font-bold">{strength.label}</p>
+                </div>
               </div>
 
               <div>
-                <label className="block text-sm font-extrabold text-[#1b4332] dark:text-ink mb-2" htmlFor="confirmPassword">
+                <label className="block text-sm font-extrabold text-[#1b4332] dark:text-ink mb-1" htmlFor="confirmPassword">
                   Confirm New Password
                 </label>
-                <input
-                  id="confirmPassword"
-                  type="password"
-                  autoComplete="new-password"
-                  minLength={8}
-                  required
-                  disabled={!token || loading}
-                  placeholder="••••••••"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="w-full border border-black/10 dark:border-line bg-white/70 dark:bg-soft rounded-2xl px-4 py-3 text-sm text-[#1b4332] dark:text-ink focus:outline-none focus:ring-2 focus:ring-[#40916c]"
-                />
+                <div className="relative">
+                  <input
+                    id="confirmPassword"
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    autoComplete="new-password"
+                    minLength={8}
+                    required
+                    disabled={!token || loading}
+                    placeholder="••••••••"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="w-full border border-black/10 dark:border-line bg-white/70 dark:bg-soft rounded-2xl px-4 py-2.5 pr-12 text-sm text-[#1b4332] dark:text-ink focus:outline-none focus:ring-2 focus:ring-[#40916c]"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword((visible) => !visible)}
+                    aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+                    aria-pressed={showConfirmPassword}
+                    className="absolute inset-y-0 right-1 flex w-11 items-center justify-center rounded-xl text-[#6a7282] hover:text-[#1b4332] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#40916c] dark:text-muted dark:hover:text-ink"
+                  >
+                    {showConfirmPassword ? <EyeOff aria-hidden="true" className="h-5 w-5" /> : <Eye aria-hidden="true" className="h-5 w-5" />}
+                  </button>
+                </div>
               </div>
 
               <button
                 type="submit"
                 disabled={!token || loading}
-                className="btn border-[#2d6a4f] bg-[#2d6a4f] text-white font-semibold text-base px-8 py-3.5 rounded-full shadow-sm hover:bg-[#1b4332] transition-colors w-full cursor-pointer mt-2 disabled:opacity-50"
+                className="btn border-[#2d6a4f] bg-[#2d6a4f] text-white font-semibold text-sm px-8 py-3 rounded-full shadow-sm hover:bg-[#1b4332] transition-colors w-full cursor-pointer mt-2 disabled:opacity-50"
               >
-                {loading ? 'Saving Password...' : 'Save Herbal-Ai Password'}
+                {loading ? 'Saving password...' : 'Set password'}
               </button>
             </form>
           )}
 
           {tokenRejected && (
-            <Link href="/forgot-password" replace className="btn border-[#2d6a4f] bg-[#2d6a4f] text-white font-semibold text-base px-8 py-3.5 rounded-full shadow-sm hover:bg-[#1b4332] transition-colors w-full">
+            <Link href="/forgot-password" replace className="btn border-[#2d6a4f] bg-[#2d6a4f] text-white font-semibold text-sm px-8 py-3 rounded-full shadow-sm hover:bg-[#1b4332] transition-colors w-full mt-4 text-center">
               Request a New Reset Link
             </Link>
           )}
 
-          <p className="text-center text-sm font-bold text-[#6a7282] dark:text-muted mt-6">
+          <p className="text-center text-sm font-bold text-[#6a7282] dark:text-muted mt-5">
             <Link href="/signin" replace className="text-[#2d6a4f] dark:text-[#74c69d] hover:underline font-extrabold">
-              Back to Sign In
+              Back to sign in
             </Link>
           </p>
         </div>
