@@ -4,6 +4,7 @@ import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { adminEditDatabaseBoundary } from './helpers/admin-edit-database-boundary.js';
+import { knowledgeImportServerBoundary } from './helpers/knowledge-import-server-boundary.js';
 const state = vi.hoisted(() => ({ client: null as PrismaClient | null }));
 vi.mock('../src/lib/prisma.js', () => ({ get prisma() { return state.client; } }));
 import { adminUserQuerySchema } from '../src/lib/admin-user-query.js';
@@ -17,9 +18,8 @@ let schemaCreated = false;
 describe.skipIf(!enabled)('Isolated administrator global user filters', () => {
   beforeAll(async () => {
     pool = new pg.Pool({ connectionString: process.env['HERBALAI_TEST_DATABASE_URL'], options: `-c search_path=${schema}` });
-    const identity = (await pool.query('SELECT current_database() AS database, host(inet_server_addr()) AS host')).rows[0];
-    expect(identity.database).toBe('herbalai_test');
-    expect(['127.0.0.1', '::1']).toContain(identity.host);
+    const identity = (await pool.query('SELECT current_database() AS database, host(inet_server_addr()) AS host, inet_server_port() AS port, current_user AS "user"')).rows[0];
+    knowledgeImportServerBoundary(identity, process.env['HERBALAI_TEST_DATABASE_URL']!, process.env['CI'] === 'true');
     await pool.query(`CREATE SCHEMA "${schema}"`);
     schemaCreated = true;
     await pool.query(`CREATE TYPE "${schema}"."Role" AS ENUM ('admin', 'contributor')`);

@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { adminEditDatabaseBoundary } from './helpers/admin-edit-database-boundary.js';
+import { knowledgeImportServerBoundary } from './helpers/knowledge-import-server-boundary.js';
 import { prisma } from '../src/lib/prisma.js';
 import { createSuggestion, requestChanges, rejectSuggestion } from '../src/repositories/suggest.repository.js';
 
@@ -8,9 +9,8 @@ const enabled = adminEditDatabaseBoundary(process.env['HERBALAI_TEST_DATABASE_UR
 
 describe.skipIf(!enabled)('Real isolated concurrent suggestion decisions', () => {
   it('allows exactly one simultaneous decision, with one revision and one audit entry', async () => {
-    const identity = await prisma.$queryRaw<Array<{ database: string; host: string }>>`SELECT current_database() AS database, host(inet_server_addr()) AS host`;
-    expect(identity[0]?.database).toBe('herbalai_test');
-    expect(['127.0.0.1', '::1']).toContain(identity[0]?.host);
+    const identity = await prisma.$queryRaw<Array<{ database: string; host: string; port: number; user: string }>>`SELECT current_database() AS database, host(inet_server_addr()) AS host, inet_server_port() AS port, current_user AS "user"`;
+    knowledgeImportServerBoundary(identity[0]!, process.env['HERBALAI_TEST_DATABASE_URL']!, process.env['CI'] === 'true');
     const suffix = randomUUID();
     const users = [`qa-owner-${suffix}`, `qa-reviewer-a-${suffix}`, `qa-reviewer-b-${suffix}`];
     let submissionId: number | undefined;
