@@ -55,7 +55,7 @@ const deferred = () => {
   const promise = new Promise((complete, fail) => { resolve = complete; reject = fail; });
   return { promise, resolve, reject };
 };
-const fixture = (values = {}, post = async () => ({ data: { message: 'TEST neutral response' } })) => {
+const fixture = (values = {}, post = async () => ({ data: { message: 'TEST neutral response' } }), capability = {}) => {
   const state = [values.current ?? 'TEST-original-password', values.next ?? 'TEST-new-password', values.confirm ?? values.next ?? 'TEST-new-password', false, null, null, null, null];
   const lock = { current: false };
   const refs = [lock, { current: null }, { current: null }];
@@ -74,7 +74,7 @@ const fixture = (values = {}, post = async () => ({ data: { message: 'TEST neutr
     cursor = 0;
     refCursor = 0;
     effects = [];
-    return component({ email: user.email, onChanged: () => { closed++; } });
+    return component({ email: user.email, ...capability, onChanged: () => { closed++; } });
   };
   const invoke = async handler => {
     const previous = globalThis.window;
@@ -122,9 +122,12 @@ for (const capability of [{ hasLocalPassword: false }, { passwordStatus: 'unset'
     const component = load(compiled, React, {});
     const markup = renderToStaticMarkup(React.createElement(component, { email: user.email, ...capability, onChanged() {} }));
     assert.doesNotMatch(markup, /Current password|Change password|autoComplete="current-password"/i);
-    assert.match(markup, /no Herbal-Ai password yet/);
-    assert.match(markup, /Email a password link/);
-    assert.match(markup, /Do not enter your Google password/);
+    assert.match(markup, /No password set\./);
+    assert.match(markup, />Set Password<\/button>/);
+    assert.match(markup, /optional Herbal-Ai password/);
+    assert.match(markup, /email a secure setup link to test@example.invalid/);
+    assert.match(markup, /does not change your Google password/);
+    assert.doesNotMatch(markup, /Create or reset|Email a password link|ServiceHub|<input|<form/);
   });
 }
 
@@ -135,6 +138,59 @@ for (const capability of [{ hasLocalPassword: true, passwordStatus: 'set' }, { h
     assert.match(markup, /Current password/);
     assert.match(markup, /Change password/);
     assert.match(markup, /Email a password link/);
+    assert.doesNotMatch(markup, /No password set|>Set Password<\/button>/);
+  });
+}
+
+test('Google-only Set Password requests an authenticated email link without changing credentials or signing out', async () => {
+  const instance = fixture({}, undefined, { hasLocalPassword: false, passwordStatus: 'unset' });
+  await instance.link();
+  assert.deepEqual(instance.requests, [['/auth/password-setup', {}]]);
+  const tree = instance.render();
+  const button = find(tree, element => element.type === 'button');
+  const feedback = find(tree, element => element.props.id === 'password-link-feedback');
+  assert.match(renderToStaticMarkup(button), /Set Password/);
+  assert.equal(button.props['aria-describedby'], 'password-setup-help password-link-feedback');
+  assert.equal(feedback.props.role, 'status');
+  assert.match(renderToStaticMarkup(tree), /Password link requested.*TEST neutral response/);
+  assert.deepEqual(instance.events, []);
+  assert.equal(instance.closed(), 0);
+  assert.equal(instance.state[0], 'TEST-original-password');
+});
+
+test('Google-only setup is disabled while pending and guards repeated clicks', async () => {
+  const gate = deferred();
+  const instance = fixture({}, () => gate.promise, { passwordStatus: 'unset' });
+  const pending = instance.link();
+  const button = find(instance.render(), element => element.type === 'button');
+  assert.equal(button.props.disabled, true);
+  assert.equal(button.props['aria-busy'], true);
+  assert.match(renderToStaticMarkup(button), /Requesting link/);
+  await instance.link();
+  assert.equal(instance.requests.length, 1);
+  gate.resolve({ data: {} });
+  await pending;
+  assert.equal(instance.lock.current, false);
+  assert.equal(find(instance.render(), element => element.type === 'button').props.disabled, false);
+});
+
+for (const [status, message] of [
+  [503, 'We could not send your password link. Please try again later.'],
+  [429, 'You can request one password link per hour.'],
+]) {
+  test(`Google-only setup failure ${status} is announced and retryable without a false success`, async () => {
+    const instance = fixture({}, async () => { throw { response: { status, data: { message } } }; }, { hasLocalPassword: false });
+    await instance.link();
+    const tree = instance.render();
+    const feedback = find(tree, element => element.props.id === 'password-link-feedback');
+    const button = find(tree, element => element.type === 'button');
+    assert.equal(feedback.props.role, 'alert');
+    assert.equal(feedback.props.children, message);
+    assert.equal(button.props.disabled, false);
+    assert.equal(button.props['aria-describedby'], 'password-setup-help password-link-feedback');
+    assert.doesNotMatch(renderToStaticMarkup(tree), /Password link requested/);
+    assert.equal(instance.lock.current, false);
+    assert.deepEqual(instance.events, []);
   });
 }
 

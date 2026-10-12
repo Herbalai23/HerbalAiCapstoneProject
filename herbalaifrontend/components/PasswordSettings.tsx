@@ -85,14 +85,39 @@ export default function PasswordSettings({ email, hasLocalPassword, passwordStat
     { label: 'Confirm new password', value: confirmation, update: setConfirmation, autocomplete: 'new-password' },
   ];
 
+  const linkFeedback = (message || linkError) && (
+    <p id="password-link-feedback" ref={linkFeedbackRef} role={linkError ? 'alert' : 'status'} aria-atomic="true" className={`mt-3 rounded-xl border border-line bg-soft p-3 text-sm break-words ${linkError ? 'font-bold text-error-ink' : 'text-success-ink'}`}>
+      {linkError || <><strong>Password link requested.</strong> {message}</>}
+    </p>
+  );
+
+  if (needsPasswordSetup) {
+    return (
+      <section aria-labelledby="password-settings-title" className="mt-8 border-t border-line pt-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+          <div className="min-w-0 flex-1">
+            <h3 id="password-settings-title" className="flex items-center gap-2 text-lg font-bold text-ink">
+              <KeyRound className="h-5 w-5" aria-hidden="true" /> Password
+            </h3>
+            <p className="mt-2 text-sm text-muted">No password set.</p>
+            <p id="password-setup-help" className="mt-2 text-base text-muted">You currently sign in through Google. Create an optional Herbal-Ai password to also sign in with your email and password.</p>
+          </div>
+          <button type="button" onClick={handlePasswordLink} disabled={busy !== null} aria-busy={busy === 'link'} aria-describedby={message || linkError ? 'password-setup-help password-link-feedback' : 'password-setup-help'} className="flat-button flat-button-primary min-h-11 w-full shrink-0 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto">
+            {busy === 'link' ? 'Requesting link…' : 'Set Password'}
+          </button>
+        </div>
+        {linkFeedback}
+        <p className="mt-3 break-words text-sm text-muted">We&apos;ll email a secure setup link to {email}. Check your inbox and Spam folder. One request per hour; links expire after an hour and work only once.</p>
+        <p className="mt-2 text-sm text-muted">Google sign-in still works. This does not change your Google password.</p>
+      </section>
+    );
+  }
+
   return (
     <section aria-labelledby="password-settings-title" className="mt-8 border-t border-line pt-6">
       <h3 id="password-settings-title" className="flex items-center gap-2 text-lg font-bold text-ink">
         <KeyRound className="h-5 w-5" aria-hidden="true" /> Herbal-Ai password
       </h3>
-      {needsPasswordSetup ? (
-        <p className="mt-2 text-sm text-muted">Your account has no Herbal-Ai password yet. Use the email link below to create one. Do not enter your Google password here.</p>
-      ) : <>
       <p id="password-change-help" className="mt-2 text-sm text-muted">Use at least 8 characters. Changing your password signs you out on all devices.</p>
       <form onSubmit={handleChangePassword} aria-describedby={error ? 'password-change-help password-change-error' : 'password-change-help'} className="mt-4 space-y-4">
         {fields.map(field => (
@@ -119,16 +144,11 @@ export default function PasswordSettings({ email, hasLocalPassword, passwordStat
           {busy === 'change' ? 'Changing password…' : 'Change password'}
         </button>
       </form>
-      </>}
       <div className="mt-6">
         <h4 className="font-bold text-ink">Create or reset your Herbal-Ai password</h4>
         <p className="mt-2 break-words text-sm text-muted">Signed in with Google and haven&apos;t created a Herbal-Ai password? Request a link at {email} to create one. You can also use this link if you forgot an existing Herbal-Ai password.</p>
         <p className="mt-2 text-sm text-muted">After saving it, you can sign in with this email and your Herbal-Ai password. Google sign-in still works for linked accounts. This does not change your Google password.</p>
-        {(message || linkError) && (
-          <p id="password-link-feedback" ref={linkFeedbackRef} role={linkError ? 'alert' : 'status'} aria-atomic="true" className={`mt-3 rounded-xl border border-line bg-soft p-3 text-sm break-words ${linkError ? 'font-bold text-error-ink' : 'text-success-ink'}`}>
-            {linkError || <><strong>Password link requested.</strong> {message}</>}
-          </p>
-        )}
+        {linkFeedback}
         <button type="button" onClick={handlePasswordLink} disabled={busy !== null} aria-busy={busy === 'link'} aria-describedby={message || linkError ? 'password-link-feedback' : undefined} className="flat-button mt-3 flex w-full items-center justify-center gap-2 disabled:cursor-not-allowed disabled:opacity-50">
           <Mail className="h-4 w-4" aria-hidden="true" /> {busy === 'link' ? 'Requesting link…' : 'Email a password link'}
         </button>
