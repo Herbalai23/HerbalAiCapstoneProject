@@ -11,6 +11,8 @@ const router = Router();
 const suggestController = new SuggestController();
 const authMiddleware = new AuthMiddleware();
 
+router.get('/:id', authMiddleware.execute, suggestController.getOwnSuggestion);
+
 router.patch('/:id', authMiddleware.execute, permittedRole([Role.admin]), validateSchema(editSuggestionSchema), suggestController.edit);
 
 router.post('/:id/resubmit', authMiddleware.execute, uploadImage, validateSchema(suggestHerbSchema), suggestController.resubmit);

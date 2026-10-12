@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { requestChangesFeedback } from '../../lib/suggestion-review';
+import React, { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import dynamic from 'next/dynamic';
 import { useAuth } from '../../context/AuthContext';
@@ -193,14 +194,20 @@ export default function AdminPage() {
   const [usersList, setUsersList] = useState<SystemUser[]>([]);
   const [usersPage, setUsersPage] = useState(1);
   const [usersTotal, setUsersTotal] = useState(0);
+  const [usersAllTotal, setUsersAllTotal] = useState(0);
+  const [usersLoading, setUsersLoading] = useState(true);
+  const [usersLoadFailed, setUsersLoadFailed] = useState(false);
+  const [usersRefresh, setUsersRefresh] = useState(0);
   const [banTarget, setBanTarget] = useState<SystemUser | null>(null);
   const [banClock, setBanClock] = useState(Date.now);
   const [kbList, setKbList] = useState<KBItem[]>([]);
   const [kbPage, setKbPage] = useState(1);
   const [kbTotal, setKbTotal] = useState(0);
   const [availableKbCategories, setAvailableKbCategories] = useState<string[]>([]);
-  const [kbLoading, setKbLoading] = useState(false);
+  const [kbLoading, setKbLoading] = useState(true);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [auditLoading, setAuditLoading] = useState(true);
+  const [auditLoadFailed, setAuditLoadFailed] = useState(false);
   const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(null);
   
   const [activeTab, setActiveTab] = useState<'dashboard' | 'pending' | 'library' | 'users' | 'knowledgebase' | 'audit'>('dashboard');
@@ -246,33 +253,14 @@ export default function AdminPage() {
 
   // User Management filters and state
   const [userSearch, setUserSearch] = useState('');
+  const [debouncedUserSearch, setDebouncedUserSearch] = useState('');
   const [userRoleFilter, setUserRoleFilter] = useState<'ALL' | 'admin' | 'contributor'>('ALL');
   const [userStatusFilter, setUserStatusFilter] = useState<'ALL' | 'ACTIVE' | 'BANNED'>('ALL');
   const [copiedEmailId, setCopiedEmailId] = useState<string | null>(null);
 
-  const filteredUsersList = useMemo(() => {
-    return usersWithBanStatus.filter((u) => {
-      if (userRoleFilter !== 'ALL' && u.role !== userRoleFilter) {
-        return false;
-      }
-      if (userStatusFilter === 'ACTIVE' && u.isBanned) {
-        return false;
-      }
-      if (userStatusFilter === 'BANNED' && !u.isBanned) {
-        return false;
-      }
-      if (userSearch.trim()) {
-        const query = userSearch.toLowerCase().trim();
-        const matchesName = (u.name || '').toLowerCase().includes(query);
-        const matchesUsername = (u.username || '').toLowerCase().includes(query);
-        const matchesEmail = (u.email || '').toLowerCase().includes(query);
-        if (!matchesName && !matchesUsername && !matchesEmail) {
-          return false;
-        }
-      }
-      return true;
-    });
-  }, [usersWithBanStatus, userRoleFilter, userStatusFilter, userSearch]);
+  const filteredUsersList = usersWithBanStatus;
+  const trimmedUserSearch = userSearch.trim();
+  const usersBusy = usersLoading || trimmedUserSearch !== debouncedUserSearch;
 
   // Herb Edit Modals and forms
   const [isHerbModalOpen, setIsHerbModalOpen] = useState(false);
@@ -300,7 +288,7 @@ export default function AdminPage() {
 
   // Auto-clear success message after 2 seconds
   useEffect(() => {
-    if (successMsg) {
+    if (successMsg && !successMsg.startsWith('Changes requested and review notes saved.')) {
       const timer = setTimeout(() => {
         setSuccessMsg(null);
       }, 2000);
@@ -317,6 +305,44 @@ export default function AdminPage() {
     const timer = window.setTimeout(() => setDebouncedKbSearch(kbSearch.trim()), 250);
     return () => window.clearTimeout(timer);
   }, [kbSearch]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedUserSearch(trimmedUserSearch), 350);
+    return () => window.clearTimeout(timer);
+  }, [trimmedUserSearch]);
+
+  useEffect(() => {
+    if (loading || !isAuthenticated || sessionUnavailable || user?.role !== 'admin' || activeTab !== 'users'
+      || trimmedUserSearch !== debouncedUserSearch) return;
+    let cancelled = false;
+    const fetchUsers = async () => {
+      setUsersLoading(true);
+      setUsersLoadFailed(false);
+      setUsersList([]);
+      setError(null);
+      try {
+        const response = await api.get('/auth/users', { params: {
+          page: usersPage, limit: 25, search: debouncedUserSearch, role: userRoleFilter, status: userStatusFilter,
+        } });
+        if (cancelled) return;
+        if (response.data?.status !== 'success') throw new Error('Unable to load users.');
+        setUsersList(response.data.data.users || []);
+        setUsersTotal(response.data.data.total || 0);
+        setUsersAllTotal(response.data.data.allTotal ?? response.data.data.total ?? 0);
+        setUsersPage(response.data.data.page || 1);
+      } catch (error: unknown) {
+        if (!cancelled) {
+          setUsersLoadFailed(true);
+          setError(getErrorMessage(error, 'Unable to load users. Please retry.'));
+        }
+      } finally {
+        if (!cancelled) setUsersLoading(false);
+      }
+    };
+    void fetchUsers();
+    return () => { cancelled = true; };
+  }, [loading, isAuthenticated, sessionUnavailable, user?.role, activeTab, usersPage, trimmedUserSearch,
+    debouncedUserSearch, userRoleFilter, userStatusFilter, usersRefresh]);
 
   const refreshKbPage = async () => {
     const response = await api.get('/knowledge-base/page', { params: {
@@ -374,14 +400,6 @@ export default function AdminPage() {
             setHerbsTotal(herbsRes.data.data.total || 0);
           }
         }
-        if (activeTab === 'users') {
-          const usersRes = await api.get('/auth/users', { params: { page: usersPage, limit: 25 } });
-          if (cancelled) return;
-          if (usersRes.data?.status === 'success') {
-            setUsersList(usersRes.data.data.users || []);
-            setUsersTotal(usersRes.data.data.total || 0);
-          }
-        }
         if (activeTab === 'knowledgebase') {
           setKbLoading(true);
           const kbRes = await api.get('/knowledge-base/page', { params: {
@@ -399,16 +417,21 @@ export default function AdminPage() {
           }
         }
         if (activeTab === 'audit') {
+          setAuditLoading(true);
+          setAuditLoadFailed(false);
           const auditRes = await api.get('/admin/audit-logs');
           if (cancelled) return;
-          if (auditRes.data?.status === 'success') setAuditLogs(auditRes.data.data.logs || []);
+          if (auditRes.data?.status !== 'success') throw new Error('Unable to load audit logs.');
+          setAuditLogs(auditRes.data.data.logs || []);
         }
       } catch (error: unknown) {
         if (!cancelled) {
+          if (activeTab === 'audit') setAuditLoadFailed(true);
           setError(getErrorMessage(error, activeTab === 'pending' ? 'Unable to load suggestions. Please try again.' : 'Error connecting to server.'));
         }
       } finally {
         if (!cancelled && activeTab === 'knowledgebase') setKbLoading(false);
+        if (!cancelled && activeTab === 'audit') setAuditLoading(false);
       }
     };
 
@@ -423,7 +446,7 @@ export default function AdminPage() {
     return () => {
       cancelled = true;
     };
-  }, [loading, isAuthenticated, sessionUnavailable, user?.role, router, activeTab, usersPage, herbsPage, debouncedLibrarySearch, kbPage, debouncedKbSearch, kbCategoryFilter, kbStatusFilter, refreshSuggestions]);
+  }, [loading, isAuthenticated, sessionUnavailable, user?.role, router, activeTab, herbsPage, debouncedLibrarySearch, kbPage, debouncedKbSearch, kbCategoryFilter, kbStatusFilter, refreshSuggestions]);
 
   const handleApprove = async (id: number) => {
     if (actioningId !== null) return;
@@ -468,6 +491,7 @@ export default function AdminPage() {
       setError('Provide at least 10 characters explaining the required changes.');
       return;
     }
+    let decisionSaved = false;
     try {
       setActioningId(id);
       setError(null);
@@ -476,7 +500,8 @@ export default function AdminPage() {
         reviewNotes, revision: suggestions.find((suggestion) => suggestion.id === id)?.revision,
       });
       if (res.data?.status === 'success') {
-        setSuccessMsg('Changes requested.');
+        decisionSaved = true;
+        setSuccessMsg(requestChangesFeedback(res.data.data?.notificationDelivery));
         await refreshSuggestions();
         setDashboardStats((prev) => prev ? {
           ...prev,
@@ -485,9 +510,13 @@ export default function AdminPage() {
             s.name === 'ChangesRequested' ? { ...s, value: s.value + 1 } : s
           ),
         } : null);
+      } else {
+        throw new Error('The change-request result could not be confirmed.');
       }
     } catch (error: unknown) {
-      setError(getErrorMessage(error, 'Failed to request changes.'));
+      setError(decisionSaved
+        ? 'Changes were saved, but the review list could not refresh. Refresh before taking another action.'
+        : getErrorMessage(error, 'Could not confirm the change request. Refresh the submission before retrying.'));
     } finally {
       setActioningId(null);
     }
@@ -525,6 +554,7 @@ export default function AdminPage() {
     invalidateApiGetCache('/auth/users');
     invalidateApiGetCache('/admin/audit-logs');
     setUsersList(previous => previous.map(account => account.id === updated.id ? { ...account, ...updated } : account));
+    setUsersRefresh(previous => previous + 1);
     setSuccessMsg(updated.isBanned ? 'User banned. Existing sessions were revoked.' : 'User unbanned. They can sign in again.');
     setError(null);
     setBanTarget(null);
@@ -1276,7 +1306,7 @@ export default function AdminPage() {
                               onChange={(event) => setReviewNotesById((current) => ({ ...current, [suggestion.id]: event.target.value }))}
                               rows={3}
                               maxLength={2000}
-                              placeholder="Record the decision or explain required changes."
+                              placeholder="Record the decision; Request Changes needs at least 10 characters."
                               className="resize-y rounded-lg border border-input bg-card px-3 py-2 text-sm text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                             />
                           </label>
@@ -1470,7 +1500,7 @@ export default function AdminPage() {
                 <div>
                   <h2 className="font-serif-custom font-black italic text-xl text-ink flex items-center gap-2">
                     <Users className="h-5 w-5 text-accent" />
-                    User Management Console ({usersTotal})
+                    User Management Console ({usersAllTotal})
                   </h2>
                   <p className="text-xs text-muted mt-1">
                     Manage roles, authentication credentials, and platform account status
@@ -1485,14 +1515,16 @@ export default function AdminPage() {
                   <input
                     type="text"
                     placeholder="Search name, @username, email..."
+                    aria-label="Search users"
+                    maxLength={100}
                     value={userSearch}
-                    onChange={(e) => setUserSearch(e.target.value)}
+                    onChange={(e) => { setUserSearch(e.target.value); setUsersPage(1); }}
                     className="w-full rounded-xl border border-input bg-panel py-2 pl-9 pr-8 text-xs font-semibold text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   />
                   {userSearch && (
                     <button
                       type="button"
-                      onClick={() => setUserSearch('')}
+                      onClick={() => { setUserSearch(''); setUsersPage(1); }}
                       className="absolute inset-y-0 right-0 pr-2.5 flex items-center text-muted hover:text-ink cursor-pointer"
                       title="Clear search"
                     >
@@ -1515,7 +1547,8 @@ export default function AdminPage() {
                       <button
                         key={status}
                         type="button"
-                        onClick={() => setUserStatusFilter(status)}
+                        onClick={() => { setUserStatusFilter(status); setUsersPage(1); }}
+                        aria-pressed={userStatusFilter === status}
                         className={`rounded-md px-2.5 py-1 text-xs font-bold transition cursor-pointer ${
                           userStatusFilter === status
                             ? 'bg-[#606c38] text-white shadow-sm'
@@ -1533,7 +1566,8 @@ export default function AdminPage() {
                       <button
                         key={role}
                         type="button"
-                        onClick={() => setUserRoleFilter(role)}
+                        onClick={() => { setUserRoleFilter(role); setUsersPage(1); }}
+                        aria-pressed={userRoleFilter === role}
                         className={`rounded-md px-2.5 py-1 text-xs font-bold transition cursor-pointer capitalize ${
                           userRoleFilter === role
                             ? 'bg-[#2d6a4f] text-white shadow-sm'
@@ -1552,6 +1586,7 @@ export default function AdminPage() {
                         setUserRoleFilter('ALL');
                         setUserStatusFilter('ALL');
                         setUserSearch('');
+                        setUsersPage(1);
                       }}
                       className="text-xs font-bold text-accent hover:underline ml-1 cursor-pointer"
                     >
@@ -1561,33 +1596,35 @@ export default function AdminPage() {
                 </div>
 
                 <div className="text-xs font-semibold text-muted">
-                  Showing <strong className="text-ink">{filteredUsersList.length}</strong> of {usersTotal} accounts
+                  Showing <strong className="text-ink">{usersBusy || usersLoadFailed ? 0 : filteredUsersList.length}</strong> of {usersTotal} matching accounts
                 </div>
               </div>
 
               {/* Users Cards / Rows */}
-              {filteredUsersList.length === 0 ? (
+              {usersBusy || usersLoadFailed || filteredUsersList.length === 0 ? (
                 <div className="rounded-2xl border border-dashed border-line p-12 text-center">
                   <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-soft text-muted mb-3">
                     <Users className="h-6 w-6" />
                   </div>
-                  <h3 className="font-bold text-ink text-sm">No users found</h3>
+                  <h3 role="status" className="font-bold text-ink text-sm">{usersBusy ? 'Loading users…' : usersLoadFailed ? 'Users could not load' : 'No users found'}</h3>
                   <p className="text-xs text-muted mt-1 max-w-sm mx-auto">
-                    {userSearch || userRoleFilter !== 'ALL' || userStatusFilter !== 'ALL'
+                    {usersBusy ? 'Checking all accounts for your selected filters.' : usersLoadFailed ? 'Retry to refresh the account list.' : userSearch || userRoleFilter !== 'ALL' || userStatusFilter !== 'ALL'
                       ? 'No users match the active filters or search keyword.'
                       : 'There are no registered accounts in this page view.'}
                   </p>
-                  {(userSearch || userRoleFilter !== 'ALL' || userStatusFilter !== 'ALL') && (
+                  {!usersBusy && (usersLoadFailed || userSearch || userRoleFilter !== 'ALL' || userStatusFilter !== 'ALL') && (
                     <button
                       type="button"
                       onClick={() => {
+                        if (usersLoadFailed) { setUsersRefresh(previous => previous + 1); return; }
                         setUserSearch('');
                         setUserRoleFilter('ALL');
                         setUserStatusFilter('ALL');
+                        setUsersPage(1);
                       }}
                       className="mt-4 text-xs font-bold text-accent hover:underline cursor-pointer"
                     >
-                      Clear search & filters
+                      {usersLoadFailed ? 'Retry' : 'Clear search & filters'}
                     </button>
                   )}
                 </div>
@@ -1737,12 +1774,12 @@ export default function AdminPage() {
               {/* Pagination */}
               <div className="mt-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-sm text-ink border-t border-line/60 pt-4">
                 <span className="text-xs font-semibold text-muted">
-                  Page <strong className="text-ink">{usersPage}</strong> of {Math.max(1, Math.ceil(usersTotal / 25))} · {usersTotal} total users
+                  Page <strong className="text-ink">{usersPage}</strong> of {Math.max(1, Math.ceil(usersTotal / 25))} · {usersTotal} matching users
                 </span>
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    disabled={usersPage === 1}
+                    disabled={usersBusy || usersLoadFailed || usersPage === 1}
                     onClick={() => setUsersPage((page) => page - 1)}
                     className="rounded-xl border border-line bg-panel px-3.5 py-1.5 text-xs font-bold text-ink transition hover:bg-soft disabled:opacity-40 cursor-pointer"
                   >
@@ -1750,7 +1787,7 @@ export default function AdminPage() {
                   </button>
                   <button
                     type="button"
-                    disabled={usersPage * 25 >= usersTotal}
+                    disabled={usersBusy || usersLoadFailed || usersPage * 25 >= usersTotal}
                     onClick={() => setUsersPage((page) => page + 1)}
                     className="rounded-xl border border-line bg-panel px-3.5 py-1.5 text-xs font-bold text-ink transition hover:bg-soft disabled:opacity-40 cursor-pointer"
                   >
@@ -2139,10 +2176,10 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              {auditLogs.length === 0 ? (
+              {auditLoading || auditLoadFailed || auditLogs.length === 0 ? (
                 <div className="bg-panel p-12 text-center rounded-2xl border border-line shadow-sm flex flex-col items-center gap-3">
                   <ClipboardList className="h-10 w-10 text-muted stroke-[1.5]" />
-                  <p className="text-sm font-bold text-muted">No audit logs recorded yet</p>
+                  <p role="status" className="text-sm font-bold text-muted">{auditLoading ? 'Loading audit logs…' : auditLoadFailed ? 'Audit logs could not be loaded. Please try again.' : 'No audit logs recorded yet'}</p>
                 </div>
               ) : (
                 <div className="bg-panel rounded-2xl border border-line shadow-sm overflow-x-auto">

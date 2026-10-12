@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   findUsers: vi.fn(),
-  countUsers: vi.fn(),
   findUser: vi.fn(),
   findMessageable: vi.fn(),
   findMessageableById: vi.fn(),
@@ -10,10 +9,9 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('../src/repositories/user.repository.js', () => ({
-  findAllUsers: mocks.findUsers,
-  countUsers: mocks.countUsers,
   findUserById: mocks.findUser,
 }));
+vi.mock('../src/repositories/admin-user.repository.js', () => ({ findAdminUserPage: mocks.findUsers }));
 vi.mock('../src/repositories/message.repository.js', () => ({
   getMessageableUsers: mocks.findMessageable,
   getMessageableUserById: mocks.findMessageableById,
@@ -26,22 +24,55 @@ import { getConversations, getUsers } from '../src/controllers/message.controlle
 const response = () => {
   const json = vi.fn();
   const status = vi.fn().mockReturnValue({ json });
-  return { status, json };
+  return { status, json, setHeader: vi.fn() };
 };
 
 describe('bounded user lists', () => {
   beforeEach(() => {
     vi.resetAllMocks();
     mocks.findUser.mockResolvedValue({ role: 'admin' });
-    mocks.findUsers.mockResolvedValue([{ id: 'one' }]);
-    mocks.countUsers.mockResolvedValue(101);
+    mocks.findUsers.mockResolvedValue({ users: [{ id: 'one' }], total: 101, allTotal: 101, page: 2, limit: 100 });
   });
 
   it('caps admin pages and reports total rows', async () => {
     const res = response();
     await new AuthController().getAllUsers({ user: { userId: 'admin' }, query: { page: '2', limit: '9999' } } as never, res as never, vi.fn());
-    expect(mocks.findUsers).toHaveBeenCalledWith(100, 100);
+    expect(mocks.findUsers).toHaveBeenCalledWith({ page: 2, limit: 100, search: '', role: 'ALL', status: 'ALL' });
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ total: 101, page: 2, limit: 100 }) }));
+    expect(res.setHeader).toHaveBeenCalledWith('Cache-Control', 'private, no-store');
+  });
+
+  it('forwards validated filters and the bounded page to persistence', async () => {
+    const res = response();
+    await new AuthController().getAllUsers({ user: { userId: 'admin' }, query: { page: '20000', search: '  Kevin  ', role: 'admin', status: 'BANNED' } } as never, res as never, vi.fn());
+    expect(mocks.findUsers).toHaveBeenCalledWith({ page: 10000, limit: 25, search: 'Kevin', role: 'admin', status: 'BANNED' });
+  });
+
+  it.each([
+    { search: ['one', 'two'] }, { search: { contains: 'all' } }, { search: 'a'.repeat(101) },
+    { role: 'owner' }, { status: 'disabled' }, { page: ['1', '2'] }, { limit: { take: 1000 } },
+  ])('rejects invalid filters without querying users: %j', async query => {
+    const res = response();
+    await new AuthController().getAllUsers({ user: { userId: 'admin' }, query } as never, res as never, vi.fn());
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(mocks.findUsers).not.toHaveBeenCalled();
+  });
+
+  it('does not query users without authentication', async () => {
+    const res = response();
+    await new AuthController().getAllUsers({ query: {} } as never, res as never, vi.fn());
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(mocks.findUsers).not.toHaveBeenCalled();
+  });
+
+  it('forwards persistence failures without returning a false empty list', async () => {
+    const res = response();
+    const next = vi.fn();
+    const failure = new Error('Isolated unavailable persistence');
+    mocks.findUsers.mockRejectedValue(failure);
+    await new AuthController().getAllUsers({ user: { userId: 'admin' }, query: {} } as never, res as never, next);
+    expect(next).toHaveBeenCalledWith(failure);
+    expect(res.json).not.toHaveBeenCalled();
   });
 
   it('returns a bounded, searchable picker page with hasMore', async () => {

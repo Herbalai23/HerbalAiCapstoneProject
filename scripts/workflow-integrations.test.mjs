@@ -10,6 +10,8 @@ const compile = source => ts.transpileModule(source, {
 const adminSource = await read('app/admin/page.tsx');
 const suggestionSource = await read('app/suggest/page.tsx');
 const signupSource = await read('app/signup/page.tsx');
+const suggestionReview = {};
+new Function('exports', compile(await read('lib/suggestion-review.ts')))(suggestionReview);
 const sourcePolicy = {};
 new Function('exports', compile(await read('lib/knowledge-source.ts')))(sourcePolicy);
 const names = {};
@@ -28,6 +30,105 @@ const initializer = (source, name) => {
 };
 const loadHandler = (source, name, context) => new Function(...Object.keys(context),
   compile(`const handler = ${initializer(source, name)};`) + '; return handler;')(...Object.values(context));
+
+const usersEffectSource = () => {
+  const parsed = ts.createSourceFile('admin.tsx', adminSource, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  let result;
+  const visit = node => {
+    if (ts.isCallExpression(node) && node.expression.getText(parsed) === 'useEffect'
+      && node.arguments[0]?.getText(parsed).includes('const fetchUsers')) result = node.arguments[0].getText(parsed);
+    ts.forEachChild(node, visit);
+  };
+  visit(parsed);
+  assert.ok(result, 'Missing global users fetch effect');
+  return result;
+};
+
+const usersFixture = (overrides = {}, get) => {
+  const values = {};
+  const requests = [];
+  const context = {
+    loading: false, isAuthenticated: true, sessionUnavailable: false, user: { role: 'admin' }, activeTab: 'users',
+    usersPage: 2, trimmedUserSearch: 'needle', debouncedUserSearch: 'needle', userRoleFilter: 'admin', userStatusFilter: 'BANNED',
+    api: { get: async (url, config) => {
+      requests.push({ url, config });
+      return get ? get() : { data: { status: 'success', data: { users: [{ id: 'off-first-page' }], total: 1, allTotal: 32, page: 1 } } };
+    } },
+    ...Object.fromEntries(['UsersLoading', 'UsersLoadFailed', 'UsersList', 'UsersTotal', 'UsersAllTotal', 'UsersPage', 'Error']
+      .map(name => [`set${name}`, value => { values[name] = value; }])),
+    getErrorMessage: (_error, fallback) => fallback, ...overrides,
+  };
+  const effect = new Function(...Object.keys(context), compile(`const effect = ${usersEffectSource()};`) + '; return effect;')(...Object.values(context));
+  return { effect, values, requests };
+};
+
+test('users fetch sends global search/role/status and accepts filtered counts and clamped page', async () => {
+  const fixture = usersFixture();
+  const cleanup = fixture.effect();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(fixture.requests, [{ url: '/auth/users', config: { params: {
+    page: 2, limit: 25, search: 'needle', role: 'admin', status: 'BANNED',
+  } } }]);
+  assert.deepEqual(fixture.values.UsersList, [{ id: 'off-first-page' }]);
+  assert.equal(fixture.values.UsersTotal, 1);
+  assert.equal(fixture.values.UsersAllTotal, 32);
+  assert.equal(fixture.values.UsersPage, 1);
+  assert.equal(fixture.values.UsersLoading, false);
+  cleanup();
+});
+
+for (const guard of [{ loading: true }, { isAuthenticated: false }, { sessionUnavailable: true },
+  { user: { role: 'contributor' } }, { activeTab: 'dashboard' }, { trimmedUserSearch: 'still typing' }]) {
+  test(`users fetch makes no API call while guarded: ${JSON.stringify(guard)}`, async () => {
+    const fixture = usersFixture(guard);
+    fixture.effect();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(fixture.requests.length, 0);
+  });
+}
+
+test('cancelled users fetch cannot overwrite a newer filter result or clear its loading state', async () => {
+  let finish;
+  const fixture = usersFixture({}, () => new Promise(resolve => { finish = resolve; }));
+  const cleanup = fixture.effect();
+  cleanup();
+  finish({ data: { status: 'success', data: { users: [{ id: 'stale' }], total: 1, page: 2 } } });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(fixture.values.UsersList, []);
+  assert.equal(fixture.values.UsersTotal, undefined);
+  assert.equal(fixture.values.UsersLoading, true);
+});
+
+test('users provider failures are not reported as a successful empty search', async () => {
+  for (const get of [async () => { throw new Error('Isolated API failure'); }, async () => ({ data: { status: 'error' } })]) {
+    const fixture = usersFixture({}, get);
+    fixture.effect();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(fixture.values.UsersLoadFailed, true);
+    assert.equal(fixture.values.UsersLoading, false);
+    assert.equal(fixture.values.UsersTotal, undefined);
+    assert.match(fixture.values.Error, /Unable to load users/);
+  }
+});
+
+test('all Users filter interactions reset pagination without altering the server-returned list', () => {
+  const parsed = ts.createSourceFile('admin.tsx', adminSource, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const handlers = [];
+  const visit = node => {
+    if (ts.isJsxAttribute(node) && ['onChange', 'onClick'].includes(node.name.getText(parsed))) {
+      const text = node.initializer?.getText(parsed) || '';
+      if (text.includes('setUserSearch(') || text.includes('setUserRoleFilter(') || text.includes('setUserStatusFilter(')) handlers.push(text);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(parsed);
+  assert.equal(handlers.length, 6);
+  for (const handler of handlers) assert.ok(handler.includes('setUsersPage(1)'), handler);
+  assert.equal(initializer(adminSource, 'filteredUsersList'), 'usersWithBanStatus');
+  assert.match(adminSource, /setDebouncedUserSearch\(trimmedUserSearch\), 350/);
+  assert.match(initializer(adminSource, 'handleBanSaved'), /setUsersRefresh/);
+  assert.match(adminSource, /usersLoadFailed \? 'Retry' : 'Clear search & filters'/);
+});
 
 const approval = (selection, status = 'UNASSESSED') => {
   const requests = [];
@@ -127,6 +228,152 @@ test('registration validation counts Unicode letters rather than combining marks
   for (const invalid of ['Ana', 'Jose\u0301', '12345', 'Maria5', 'Maria Jane', 'Maria-Jane', 'a'.repeat(51)]) {
     assert.ok(names.registrationNameError(invalid, 'First name'));
   }
+});
+
+test('submission edit links preserve their exact target through sign-in without external redirects', () => {
+  assert.equal(suggestionReview.submissionEditId('?edit=7'), 7);
+  assert.equal(suggestionReview.submissionSignInPath('?edit=7'), '/signin?callbackUrl=%2Fsuggest%3Fedit%3D7');
+  for (const search of ['?edit=0', '?edit=-1', '?edit=1.5', '?edit=2147483648', '?edit=https://evil.invalid', '?edit=07']) {
+    assert.equal(suggestionReview.submissionEditId(search), null);
+    assert.equal(suggestionReview.submissionSignInPath(search), '/signin?callbackUrl=%2Fsuggest');
+  }
+});
+
+test('linked revision loader opens only the requested record while changes remain requested', async () => {
+  const submission = { id: 7, status: 'ChangesRequested', reviewNotes: 'QA requested changes' };
+  assert.deepEqual(await suggestionReview.loadRevisionSubmission(7, async () => ({ data: { status: 'success', data: { suggestion: submission } } })), submission);
+  for (const record of [{ ...submission, id: 8 }, { ...submission, status: 'Pending' }, { ...submission, status: 'Approved' }]) {
+    await assert.rejects(suggestionReview.loadRevisionSubmission(7, async () => ({ data: { status: 'success', data: { suggestion: record } } })));
+  }
+  await assert.rejects(suggestionReview.loadRevisionSubmission(7, async () => ({ data: { status: 'error' } })));
+});
+
+test('request-changes feedback distinguishes provider acceptance, suppression and failure', () => {
+  assert.match(suggestionReview.requestChangesFeedback({ emailStatus: 'provider_accepted' }), /Inbox delivery is not yet confirmed/);
+  assert.match(suggestionReview.requestChangesFeedback({ emailStatus: 'unavailable', inAppStatus: 'unavailable' }), /review notes remain/);
+  assert.match(suggestionReview.requestChangesFeedback({ emailStatus: 'suppressed' }), /suppressed/);
+  assert.match(suggestionReview.requestChangesFeedback(null), /not confirmed/);
+});
+
+const revisionEffectSource = () => {
+  const parsed = ts.createSourceFile('suggest.tsx', suggestionSource, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  let result;
+  const visit = node => {
+    if (ts.isCallExpression(node) && node.expression.getText(parsed) === 'useEffect'
+      && node.arguments[0]?.getText(parsed).includes('loadRevisionSubmission<Submission>')) result = node.arguments[0].getText(parsed);
+    ts.forEachChild(node, visit);
+  };
+  visit(parsed);
+  assert.ok(result, 'Missing linked-submission integration');
+  return result;
+};
+
+test('exact edit-link effect fetches the owner endpoint and initializes the existing editor', async () => {
+  const changes = {};
+  const submission = { id: 7, status: 'ChangesRequested' };
+  const context = {
+    isAuthenticated: true, linkedSearch: 'edit=7',
+    submissionEditId: suggestionReview.submissionEditId, loadRevisionSubmission: suggestionReview.loadRevisionSubmission,
+    api: { get: async path => { changes.path = path; return { data: { status: 'success', data: { suggestion: submission } } }; } },
+    setEditingSubmission: value => { changes.current = value; }, setLinkedSubmissionLoading: value => { changes.loading = value; },
+    handleReset: () => { changes.current = null; },
+    editSubmission: value => { changes.edited = value; }, setError: value => { changes.error = value; },
+    requestError: (_error, fallback) => fallback,
+  };
+  const effect = new Function(...Object.keys(context), compile(`const effect = ${revisionEffectSource()};`) + ';return effect;')(...Object.values(context));
+  const cleanup = effect();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(changes.path, '/suggest/7');
+  assert.deepEqual(changes.edited, submission);
+  assert.equal(changes.loading, false);
+  assert.equal(changes.error, undefined);
+  cleanup();
+});
+
+test('leaving the page cancels a pending edit-link result rather than overwriting another session', async () => {
+  let resolveRequest;
+  const edits = [];
+  const context = {
+    isAuthenticated: true, linkedSearch: 'edit=7',
+    submissionEditId: suggestionReview.submissionEditId, loadRevisionSubmission: suggestionReview.loadRevisionSubmission,
+    api: { get: () => new Promise(resolve => { resolveRequest = resolve; }) },
+    setEditingSubmission() {}, setLinkedSubmissionLoading() {}, editSubmission: value => edits.push(value),
+    handleReset() {},
+    setError: value => edits.push(value), requestError: (_error, fallback) => fallback,
+  };
+  const effect = new Function(...Object.keys(context), compile(`const effect = ${revisionEffectSource()};`) + ';return effect;')(...Object.values(context));
+  const cleanup = effect();
+  cleanup();
+  resolveRequest({ data: { status: 'success', data: { suggestion: { id: 7, status: 'ChangesRequested' } } } });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(edits, []);
+});
+
+test('admin searches have explicit labels and audit loading cannot claim an empty history', () => {
+  assert.match(adminSource, /aria-label="Search herbs"/);
+  assert.match(adminSource, /aria-label="Search knowledge base facts"/);
+  assert.match(adminSource, /aria-label="Filter audit logs"/);
+  assert.match(adminSource, /\[kbLoading, setKbLoading\] = useState\(true\)/);
+  assert.match(adminSource, /\[auditLoading, setAuditLoading\] = useState\(true\)/);
+  assert.match(adminSource, /auditLoading \|\| auditLoadFailed \|\| auditLogs.length === 0/);
+  assert.match(adminSource, /Loading audit logs…/);
+  assert.match(adminSource, /Audit logs could not be loaded/);
+});
+
+test('revision editor observes in-page query navigation within a production-safe Suspense boundary', () => {
+  assert.match(suggestionSource, /const linkedSearch = useSearchParams\(\).toString\(\)/);
+  assert.match(suggestionSource, /\[isAuthenticated, user\?\.id, editSubmission, handleReset, linkedSearch\]/);
+  assert.match(suggestionSource, /<Suspense fallback=\{null\}><SuggestHerbContent \/><\/Suspense>/);
+  assert.match(adminSource, /!successMsg.startsWith\('Changes requested and review notes saved\.'\)/);
+});
+
+test('invalid or removed edit-link target clears the previous editor without fetching a different record', async () => {
+  for (const linkedSearch of ['edit=bad', '']) {
+    const observed = { resets: 0, requests: 0 };
+    const context = {
+      isAuthenticated: true, linkedSearch, handleReset: () => { observed.resets += 1; },
+      submissionEditId: suggestionReview.submissionEditId, loadRevisionSubmission: suggestionReview.loadRevisionSubmission,
+      api: { get: async () => { observed.requests += 1; } }, setLinkedSubmissionLoading() {}, editSubmission() {},
+      setError: value => { observed.error = value; }, requestError: (_error, fallback) => fallback,
+    };
+    const effect = new Function(...Object.keys(context), compile(`const effect = ${revisionEffectSource()};`) + ';return effect;')(...Object.values(context));
+    const cleanup = effect();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(observed.resets, 1);
+    assert.equal(observed.requests, 0);
+    if (linkedSearch) assert.match(observed.error, /Invalid submission link/);
+    cleanup();
+  }
+});
+
+test('request-changes acknowledgement remains truthful if the subsequent list refresh fails', async () => {
+  const messages = {};
+  let calls = 0;
+  const handler = loadHandler(adminSource, 'handleRequestChanges', {
+    actioningId: null, reviewNotesById: { 7: 'Please add a documented source.' }, suggestions: [{ id: 7, revision: 2 }],
+    api: { post: async () => { calls += 1; return { data: { status: 'success', data: { notificationDelivery: { emailStatus: 'provider_accepted' } } } }; } },
+    setActioningId: value => { messages.busy = value; }, setError: value => { messages.error = value; },
+    setSuccessMsg: value => { messages.success = value; }, requestChangesFeedback: suggestionReview.requestChangesFeedback,
+    refreshSuggestions: async () => { throw new Error('QA list unavailable'); }, setDashboardStats() {},
+    getErrorMessage: (_error, fallback) => fallback,
+  });
+  await handler(7);
+  assert.equal(calls, 1);
+  assert.match(messages.success, /review notes saved/);
+  assert.match(messages.error, /Changes were saved, but the review list could not refresh/);
+  assert.equal(messages.busy, null);
+});
+
+test('unconfirmed request-changes transport errors advise refresh rather than a blind repeat', async () => {
+  let feedback;
+  const handler = loadHandler(adminSource, 'handleRequestChanges', {
+    actioningId: null, reviewNotesById: { 7: 'Please add a documented source.' }, suggestions: [{ id: 7, revision: 2 }],
+    api: { post: async () => { throw new Error('QA timeout'); } }, setActioningId() {}, setError: value => { feedback = value; },
+    setSuccessMsg() {}, requestChangesFeedback: suggestionReview.requestChangesFeedback, refreshSuggestions() {}, setDashboardStats() {},
+    getErrorMessage: (_error, fallback) => fallback,
+  });
+  await handler(7);
+  assert.match(feedback, /Refresh the submission before retrying/);
 });
 
 test('registration names enforce the 5–10-letter range for both fields', () => {

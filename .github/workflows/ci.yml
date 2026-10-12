@@ -79,6 +79,8 @@ jobs:
           tests/api-security-boundaries.test.ts tests/api-outage-forwarding.test.ts tests/socket-security-boundaries.test.ts
           tests/knowledge-import-atomicity.test.ts tests/knowledge-import-database.test.ts tests/knowledge-authenticated-flow.test.ts
           tests/knowledge-page-filters-database.test.ts
+          tests/review-concurrency-database.test.ts tests/suggestion-review-email.test.ts
+          tests/admin-user-page-database.test.ts tests/list-pagination.test.ts
           tests/credits-config.test.ts tests/credits-database.test.ts
           tests/knowledge-import-boundary.test.ts tests/helpers/knowledge-import-server-boundary.ts
           tests/dr-ai-introduction.test.ts tests/dr-ai-local-language-retrieval.test.ts

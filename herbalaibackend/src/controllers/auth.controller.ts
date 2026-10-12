@@ -2,6 +2,8 @@ import type { Request, Response, NextFunction } from "express";
 import * as authService from "../services/auth.service.js";
 import { passwordCapability } from '../lib/password-capability.js';
 import * as userRepo from "../repositories/user.repository.js";
+import { findAdminUserPage } from '../repositories/admin-user.repository.js';
+import { adminUserQuerySchema } from '../lib/admin-user-query.js';
 import { ENV } from "../config/env.js";
 import type { AuthenticatedRequest } from "../middlewares/auth.middleware.js";
 import { randomBytes, timingSafeEqual } from "node:crypto";
@@ -382,21 +384,17 @@ export class AuthController {
         return;
       }
 
-      const requestedLimit = Number(req.query["limit"]);
-      const requestedPage = Number(req.query["page"]);
-      const limit = Number.isInteger(requestedLimit) && requestedLimit > 0 ? Math.min(requestedLimit, 100) : 25;
-      const page = Number.isInteger(requestedPage) && requestedPage > 0 ? Math.min(requestedPage, 10_000) : 1;
-      const users = await userRepo.findAllUsers(limit, (page - 1) * limit);
-      const total = await userRepo.countUsers();
+      const query = adminUserQuerySchema.safeParse(req.query);
+      if (!query.success) {
+        res.status(400).json({ status: 'error', code: 400, message: 'Invalid user filters. Search must be at most 100 characters.' });
+        return;
+      }
+      const data = await findAdminUserPage(query.data);
+      res.setHeader('Cache-Control', 'private, no-store');
       res.status(200).json({
         status: "success",
         code: 200,
-        data: {
-          users,
-          total,
-          page,
-          limit,
-        }
+        data,
       });
     } catch (error) {
       next(error);

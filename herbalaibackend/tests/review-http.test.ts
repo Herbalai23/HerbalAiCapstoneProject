@@ -26,6 +26,7 @@ app.post('/:id/approve', validateSchema(approveSuggestionSchema), controller.app
 app.post('/:id/request-changes', validateSchema(requestSuggestionChangesSchema), controller.requestChanges);
 app.post('/:id/reject', validateSchema(rejectSuggestionSchema), controller.rejectSuggestion);
 app.post('/:id/resubmit', controller.resubmit);
+app.get('/:id', controller.getOwnSuggestion);
 app.use((error: Error, _req: Request, res: Response, _next: NextFunction) => {
   const response = errorResponse(error, false);
   res.status(response.status).json(response.body);
@@ -165,5 +166,99 @@ describe('Review HTTP results and side effects', () => {
     expect((await request(app).post('/7/resubmit').send(content)).status).toBe(200);
     expect(mocks.resubmit).toHaveBeenCalledWith(7, 'qa-admin', expect.objectContaining({ imageUrl: '/images/herbs/qa.jpg' }));
     expect(mocks.upload).not.toHaveBeenCalled();
+  });
+
+  it('saves a change request and sends an exact-submission notification and email once', async () => {
+    mocks.requestChanges.mockResolvedValue({ id: 7, status: 'ChangesRequested' });
+    mocks.mail.mockResolvedValue({ id: 'qa-accepted' });
+    const response = await request(app).post('/7/request-changes').send(body);
+    expect(response.status).toBe(200);
+    expect(response.body.data.notificationDelivery).toEqual({ inAppStatus: 'created', emailStatus: 'provider_accepted' });
+    expect(mocks.notify).toHaveBeenCalledWith(expect.objectContaining({ userId: 'qa-owner', link: '/suggest?edit=7' }));
+    expect(mocks.mail).toHaveBeenCalledTimes(1);
+    expect(mocks.mail).toHaveBeenCalledWith(expect.objectContaining({ to: 'qa@example.invalid', html: expect.stringContaining('/suggest?edit=7') }));
+    expect(mocks.requestChanges.mock.invocationCallOrder[0]).toBeLessThan(mocks.mail.mock.invocationCallOrder[0]!);
+  });
+
+  it.each(['failure', 'suppressed', 'missing recipient'])('preserves the review decision when email delivery is %s', async scenario => {
+    mocks.requestChanges.mockResolvedValue({ id: 7, status: 'ChangesRequested' });
+    if (scenario === 'failure') mocks.mail.mockRejectedValue(new Error('Private provider detail'));
+    if (scenario === 'suppressed') mocks.mail.mockResolvedValue({ suppressed: true, messageId: 'qa-suppressed' });
+    if (scenario === 'missing recipient') mocks.user.mockResolvedValue(null);
+    const response = await request(app).post('/7/request-changes').send(body);
+    expect(response.status).toBe(200);
+    expect(response.body.data.suggestion.status).toBe('ChangesRequested');
+    expect(response.body.data.notificationDelivery.emailStatus).toBe(scenario === 'failure' ? 'unavailable' : scenario === 'suppressed' ? 'suppressed' : 'no_recipient');
+    expect(JSON.stringify(response.body)).not.toContain('Private provider detail');
+    expect(mocks.requestChanges).toHaveBeenCalledTimes(1);
+  });
+
+  it('attempts email independently if the in-app notification fails', async () => {
+    mocks.requestChanges.mockResolvedValue({ id: 7, status: 'ChangesRequested' });
+    mocks.notify.mockRejectedValue(new Error('QA notification failure'));
+    mocks.mail.mockResolvedValue({ id: 'qa-accepted' });
+    const response = await request(app).post('/7/request-changes').send(body);
+    expect(response.status).toBe(200);
+    expect(response.body.data.notificationDelivery).toEqual({ inAppStatus: 'unavailable', emailStatus: 'provider_accepted' });
+    expect(mocks.mail).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(['', 'Short', '         ', 'x'.repeat(2001)])('rejects invalid revision notes before any mutation or mail: %s', notes => {
+    return request(app).post('/7/request-changes').send({ revision: 2, reviewNotes: notes }).then(response => {
+      expect(response.status).toBe(400);
+      expect(mocks.requestChanges).not.toHaveBeenCalled();
+      expect(mocks.notify).not.toHaveBeenCalled();
+      expect(mocks.mail).not.toHaveBeenCalled();
+    });
+  });
+
+  it('sends one email and one notice for two concurrent decisions when only one repository claim wins', async () => {
+    let claimed = false;
+    mocks.requestChanges.mockImplementation(async () => {
+      if (claimed) return null;
+      claimed = true;
+      return { id: 7, status: 'ChangesRequested' };
+    });
+    mocks.mail.mockResolvedValue({ id: 'qa-accepted' });
+    const responses = await Promise.all([
+      request(app).post('/7/request-changes').send(body), request(app).post('/7/request-changes').send(body),
+    ]);
+    expect(responses.map(response => response.status).sort()).toEqual([200, 409]);
+    expect(mocks.notify).toHaveBeenCalledTimes(1);
+    expect(mocks.mail).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns no detail for a nonexistent linked submission without triggering notifications', async () => {
+    mocks.find.mockResolvedValue(null);
+    const response = await request(app).get('/7');
+    expect(response.status).toBe(404);
+    expect(mocks.notify).not.toHaveBeenCalled();
+    expect(mocks.mail).not.toHaveBeenCalled();
+  });
+
+  it('opens only the authenticated owner\'s exact submission with no-store caching', async () => {
+    mocks.find.mockResolvedValue({ ...content, id: 7, submitterId: 'qa-admin', status: 'ChangesRequested' });
+    const response = await request(app).get('/7');
+    expect(response.status).toBe(200);
+    expect(response.body.data.suggestion.id).toBe(7);
+    expect(response.headers['cache-control']).toBe('private, no-store');
+  });
+
+  it('does not grant another submission access even to an admin following the owner link', async () => {
+    const response = await request(app).get('/7');
+    expect(response.status).toBe(404);
+    expect(response.body).not.toHaveProperty('data');
+  });
+
+  it.each(['0', '-1', '1.5', '2147483648', '07'])('rejects an invalid owner-detail ID %s before storage access', async id => {
+    expect((await request(app).get(`/${id}`)).status).toBe(400);
+    expect(mocks.find).not.toHaveBeenCalled();
+  });
+
+  it('requires authentication before reading owner-only details', async () => {
+    const anonymous = express();
+    anonymous.get('/:id', controller.getOwnSuggestion);
+    expect((await request(anonymous).get('/7')).status).toBe(401);
+    expect(mocks.find).not.toHaveBeenCalled();
   });
 });

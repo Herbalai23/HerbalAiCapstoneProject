@@ -7,6 +7,10 @@ import { once } from 'node:events';
 import ts from '../herbalaifrontend/node_modules/typescript/lib/typescript.js';
 
 const requireFrontend = createRequire(new URL('../herbalaifrontend/package.json', import.meta.url));
+const suggestionReview = {};
+new Function('exports', ts.transpileModule(await readFile(new URL('../herbalaifrontend/lib/suggestion-review.ts', import.meta.url), 'utf8'), {
+  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+}).outputText)(suggestionReview);
 const axios = requireFrontend('axios');
 const source = await readFile(new URL('../herbalaifrontend/lib/axios.ts', import.meta.url), 'utf8');
 const compiled = ts.transpileModule(source, {
@@ -741,8 +745,9 @@ for (const page of ['suggest/page.tsx', 'community/new/page.tsx']) {
     const redirects = [];
     const runGuard = (authLoading, isAuthenticated, sessionUnavailable) => {
       const code = ts.transpileModule(`return (${guard});`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
-      new Function('authLoading', 'isAuthenticated', 'sessionUnavailable', 'router', code)(
+      new Function('authLoading', 'isAuthenticated', 'sessionUnavailable', 'router', 'submissionSignInPath', 'linkedSearch', code)(
         authLoading, isAuthenticated, sessionUnavailable, { push: path => redirects.push(path) },
+        suggestionReview.submissionSignInPath, 'edit=7',
       )();
     };
     runGuard(false, false, true);
@@ -750,7 +755,7 @@ for (const page of ['suggest/page.tsx', 'community/new/page.tsx']) {
     runGuard(false, true, true);
     assert.deepEqual(redirects, []);
     runGuard(false, false, false);
-    assert.deepEqual(redirects, [page.startsWith('suggest') ? '/signin?callbackUrl=/suggest' : '/signin?callbackUrl=/community/new']);
+    assert.deepEqual(redirects, [page.startsWith('suggest') ? '/signin?callbackUrl=%2Fsuggest%3Fedit%3D7' : '/signin?callbackUrl=/community/new']);
     assert.ok(recovery);
     const code = ts.transpileModule(`function render() ${recovery}; return render();`, {
       compilerOptions: { target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.React },

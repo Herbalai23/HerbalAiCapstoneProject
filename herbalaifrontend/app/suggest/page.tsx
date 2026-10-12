@@ -1,13 +1,15 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { Suspense, useState, useRef, useEffect, useCallback } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '../../context/AuthContext';
 import Navbar from '../../components/Navbar';
 import Footer from '../../components/Footer';
 import SessionUnavailable from '../../components/SessionUnavailable';
 import SuggestionStatusBadge, { type SuggestionStatus } from '../../components/SuggestionStatusBadge';
 import api from '../../lib/axios';
+import { loadRevisionSubmission, submissionEditId, submissionSignInPath } from '../../lib/suggestion-review';
+import { requestError } from '../../lib/request-feedback';
 import {
   UploadCloud,
   AlertCircle,
@@ -53,8 +55,13 @@ const submissionStatusCopy: Record<SuggestionStatus, { title: string; detail: st
 };
 
 export default function SuggestHerbPage() {
+  return <Suspense fallback={null}><SuggestHerbContent /></Suspense>;
+}
+
+function SuggestHerbContent() {
   const { user, isAuthenticated, loading: authLoading, sessionUnavailable, checkSession } = useAuth();
   const router = useRouter();
+  const linkedSearch = useSearchParams().toString();
 
   // Form Fields
   const [localName, setLocalName] = useState('');
@@ -82,6 +89,7 @@ export default function SuggestHerbPage() {
   const [submissionsError, setSubmissionsError] = useState<string | null>(null);
   const [submissionsRefresh, setSubmissionsRefresh] = useState(0);
   const [editingSubmission, setEditingSubmission] = useState<Submission | null>(null);
+  const [linkedSubmissionLoading, setLinkedSubmissionLoading] = useState(false);
   const [submissionsTab, setSubmissionsTab] = useState<'all' | 'active' | 'history'>('all');
   const [submissionsPage, setSubmissionsPage] = useState(1);
   const [submissionsTotal, setSubmissionsTotal] = useState(0);
@@ -113,9 +121,9 @@ export default function SuggestHerbPage() {
   // Protect client side transitions just in case middleware is bypassed
   useEffect(() => {
     if (!authLoading && !isAuthenticated && !sessionUnavailable) {
-      router.push('/signin?callbackUrl=/suggest');
+      router.push(submissionSignInPath(linkedSearch));
     }
-  }, [authLoading, isAuthenticated, sessionUnavailable, router]);
+  }, [authLoading, isAuthenticated, sessionUnavailable, router, linkedSearch]);
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -220,6 +228,7 @@ export default function SuggestHerbPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (linkedSubmissionLoading || isSubmitting) return;
     setError(null);
     setIsSubmitting(true);
 
@@ -284,7 +293,7 @@ export default function SuggestHerbPage() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleReset = () => {
+  const handleReset = useCallback(() => {
     setEditingSubmission(null);
     setLocalName('');
     setScientificName('');
@@ -302,9 +311,9 @@ export default function SuggestHerbPage() {
     setError(null);
     setSuccess(false);
     setSubmittedHerb(null);
-  };
+  }, []);
 
-  const editSubmission = (submission: Submission) => {
+  const editSubmission = useCallback((submission: Submission) => {
     handleReset();
     setEditingSubmission(submission);
     setLocalName(submission.localName);
@@ -317,7 +326,34 @@ export default function SuggestHerbPage() {
     setRegionFound(submission.regionFound || '');
     setWarnings(submission.warnings || '');
     setInformationSource(submission.informationSource || '');
-  };
+  }, [handleReset]);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    let cancelled = false;
+    const openLinkedSubmission = async () => {
+      handleReset();
+      setLinkedSubmissionLoading(false);
+      const search = linkedSearch;
+      if (!new URLSearchParams(search).has('edit')) return;
+      const id = submissionEditId(search);
+      if (id === null) {
+        setError('Invalid submission link. Choose Edit and resubmit from My Submissions.');
+        return;
+      }
+      setLinkedSubmissionLoading(true);
+      try {
+        const submission = await loadRevisionSubmission<Submission>(id, () => api.get(`/suggest/${id}`));
+        if (!cancelled) editSubmission(submission);
+      } catch (caught) {
+        if (!cancelled) setError(requestError(caught, caught instanceof Error ? caught.message : 'This submission could not be opened.'));
+      } finally {
+        if (!cancelled) setLinkedSubmissionLoading(false);
+      }
+    };
+    void openLinkedSubmission();
+    return () => { cancelled = true; };
+  }, [isAuthenticated, user?.id, editSubmission, handleReset, linkedSearch]);
 
   const currentSubmission = submittedHerb
     ? submissions.find((submission) => submission.id === submittedHerb.id) ?? submittedHerb
@@ -358,7 +394,7 @@ export default function SuggestHerbPage() {
             📖 Contribute Knowledge
           </span>
           <h1 className="text-4xl lg:text-5xl font-serif-custom font-black italic text-[#1b4332] dark:text-ink tracking-tight">
-            {editingSubmission ? 'Revise Herb Suggestion' : user?.role === 'admin' ? 'Add a New Herb' : 'Suggest a New Herb'}
+            {linkedSubmissionLoading ? 'Opening your submission…' : editingSubmission ? 'Revise Herb Suggestion' : user?.role === 'admin' ? 'Add a New Herb' : 'Suggest a New Herb'}
           </h1>
           <p className="text-[#2d6a4f] dark:text-muted font-bold mt-2 max-w-2xl">
             Help expand our library of Philippine medicinal plants. An administrator reviews each suggestion before it can appear in the public library.

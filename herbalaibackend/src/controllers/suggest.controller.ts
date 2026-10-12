@@ -8,6 +8,7 @@ import { prisma } from '../lib/prisma.js';
 import { createNotification } from '../repositories/notification.repository.js';
 import { sendMail } from '../lib/mailer.js';
 import { ENV } from '../config/env.js';
+import { buildSuggestionChangesEmail, suggestionEditPath } from '../lib/suggestion-review-email.js';
 import type { HerbEvidenceClass } from '@prisma/client';
 import { editSuggestionSchema, hasPublicationReferenceCoverage, suggestHerbSchema, suggestionListQuerySchema } from '../schema/suggest.schema.js';
 
@@ -18,6 +19,29 @@ const parseSuggestionId = (value: unknown): number | null => {
 };
 
 export class SuggestController {
+  public getOwnSuggestion = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const userId = (req as AuthenticatedRequest).user?.userId;
+      const id = parseSuggestionId(req.params.id);
+      if (!userId) {
+        res.status(401).json({ status: 'error', message: 'Authentication required.' });
+        return;
+      }
+      if (id === null) {
+        res.status(400).json({ status: 'error', message: 'Invalid suggestion ID.' });
+        return;
+      }
+      const suggestion = await suggestRepo.findSuggestionById(id);
+      if (!suggestion || suggestion.submitterId !== userId) {
+        res.status(404).json({ status: 'error', message: 'Submission not found.' });
+        return;
+      }
+      res.setHeader('Cache-Control', 'private, no-store');
+      res.json({ status: 'success', data: { suggestion } });
+    } catch (error) {
+      next(error);
+    }
+  };
   public edit = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const reviewerId = (req as AuthenticatedRequest).user?.userId;
@@ -438,25 +462,42 @@ export class SuggestController {
         res.status(409).json({ status: 'error', message: 'This submission changed or is no longer pending. Refresh and review the latest version.' });
         return;
       }
+      let inAppStatus: 'created' | 'unavailable' = 'unavailable';
+      let emailStatus: 'provider_accepted' | 'suppressed' | 'unavailable' | 'no_recipient' = 'unavailable';
       try {
         const notification = await createNotification({
           userId: suggestion.submitterId,
           title: 'Changes requested for herb suggestion',
           message: `An administrator requested changes to “${suggestion.localName}”: ${reviewNotes}`,
           type: 'SUGGESTION_UPDATE',
-          link: '/suggest',
+          link: suggestionEditPath(id),
         });
+        inAppStatus = 'created';
         const { io } = await import('../server.js');
         io.to(suggestion.submitterId).emit('notification', notification);
       } catch (notificationError) {
         console.error('Failed to deliver change-request notification:', notificationError);
+      }
+      try {
+        const submitter = await prisma.user.findUnique({ where: { id: suggestion.submitterId }, select: { name: true, email: true } });
+        if (!submitter?.email) {
+          emailStatus = 'no_recipient';
+        } else {
+          const receipt = await sendMail(buildSuggestionChangesEmail({
+            id, localName: suggestion.localName, reviewNotes, name: submitter.name, email: submitter.email,
+            frontendUrl: ENV.FRONTEND_URL, appName: ENV.APP_NAME,
+          }));
+          emailStatus = receipt?.suppressed === true ? 'suppressed' : receipt ? 'provider_accepted' : 'unavailable';
+        }
+      } catch {
+        console.error('Request-changes email could not be sent; the review decision remains saved.');
       }
 
       res.status(200).json({
         status: 'success',
         code: 200,
         message: 'Changes requested.',
-        data: { suggestion: updated },
+        data: { suggestion: updated, notificationDelivery: { inAppStatus, emailStatus } },
       });
     } catch (error) {
       next(error);
