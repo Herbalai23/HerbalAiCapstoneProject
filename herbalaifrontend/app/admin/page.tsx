@@ -1643,9 +1643,9 @@ export default function AdminPage() {
                         }`}
                       >
                         {/* Top / Main Row: User details, Role, Status, and Action */}
-                        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3.5 sm:gap-4">
                           {/* Left: User Identity */}
-                          <div className="flex items-start gap-3.5 min-w-0">
+                          <div className="flex items-start gap-3 sm:gap-3.5 min-w-0 flex-1">
                             {/* Avatar */}
                             <div className="relative shrink-0">
                               {u.avatar ? (
@@ -1655,8 +1655,8 @@ export default function AdminPage() {
                                   className="h-11 w-11 rounded-2xl object-cover border border-line"
                                 />
                               ) : (
-                                <div className="h-11 w-11 rounded-2xl bg-gradient-to-br from-[#2d6a4f]/20 to-[#606c38]/20 text-[#2d6a4f] dark:text-[#74c69d] flex items-center justify-center font-black text-sm border border-line shadow-inner">
-                                  {u.name?.charAt(0).toUpperCase() || 'U'}
+                                <div className="h-11 w-11 rounded-2xl bg-gradient-to-br from-[#2d6a4f]/20 to-[#606c38]/20 text-[#2d6a4f] dark:text-[#74c69d] flex items-center justify-center font-black text-sm border border-line shadow-inner select-none">
+                                  {u.name?.trim().charAt(0).toUpperCase() || 'U'}
                                 </div>
                               )}
                               {u.isBanned ? (
@@ -1669,15 +1669,15 @@ export default function AdminPage() {
                             {/* Name, Username, and Badges */}
                             <div className="min-w-0 flex-1">
                               <div className="flex flex-wrap items-center gap-2">
-                                <span className="font-extrabold text-ink text-sm sm:text-base tracking-tight truncate">
+                                <span className="font-extrabold text-ink text-sm sm:text-base tracking-tight truncate max-w-[200px] sm:max-w-xs md:max-w-sm" title={u.name}>
                                   {u.name}
                                 </span>
                                 {isCurrentUser && (
-                                  <span className="rounded-md bg-[#2d6a4f]/15 px-2 py-0.5 text-[10px] font-black text-[#2d6a4f] dark:text-[#74c69d] border border-[#2d6a4f]/30">
+                                  <span className="shrink-0 rounded-md bg-[#2d6a4f]/15 px-2 py-0.5 text-[10px] font-black text-[#2d6a4f] dark:text-[#74c69d] border border-[#2d6a4f]/30">
                                     You
                                   </span>
                                 )}
-                                <span className={`text-[10px] font-black tracking-wider px-2 py-0.5 rounded-md uppercase border ${
+                                <span className={`shrink-0 text-[10px] font-black tracking-wider px-2 py-0.5 rounded-md uppercase border ${
                                   u.role === 'admin'
                                     ? 'bg-[#1b4332]/10 dark:bg-[#1b4332]/40 text-[#2d6a4f] dark:text-[#74c69d] border-[#2d6a4f]/30'
                                     : 'bg-soft text-ink border-line'
@@ -1686,15 +1686,19 @@ export default function AdminPage() {
                                 </span>
                               </div>
 
-                              <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted font-medium">
-                                <span className="font-semibold text-muted">@{u.username}</span>
-                                <span className="inline-block h-1 w-1 rounded-full bg-muted/40" />
+                              <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-muted font-medium min-w-0">
+                                <span className="font-semibold text-muted truncate max-w-[150px] sm:max-w-[220px]" title={`@${u.username}`}>
+                                  @{u.username}
+                                </span>
+                                <span className="inline-block h-1 w-1 rounded-full bg-muted/40 shrink-0" />
                                 <div className="inline-flex items-center gap-1.5 min-w-0">
-                                  <span className="truncate max-w-[220px] sm:max-w-md font-mono text-[11px] text-ink/80">{u.email}</span>
+                                  <span className="truncate max-w-[180px] sm:max-w-[260px] md:max-w-xs font-mono text-[11px] text-ink/80" title={u.email}>
+                                    {u.email}
+                                  </span>
                                   <button
                                     type="button"
                                     onClick={() => handleCopyEmail(u.id, u.email)}
-                                    className="text-muted hover:text-ink cursor-pointer p-0.5"
+                                    className="text-muted hover:text-ink cursor-pointer p-0.5 shrink-0 transition-colors"
                                     title="Copy email address"
                                   >
                                     {copiedEmailId === u.id ? (
@@ -1708,10 +1712,10 @@ export default function AdminPage() {
                             </div>
                           </div>
 
-                          {/* Right: Status Pill & Action Button */}
-                          <div className="flex flex-wrap items-center justify-between lg:justify-end gap-3 pt-2 lg:pt-0 border-t lg:border-t-0 border-line/50">
+                          {/* Right: Status Pill & Action Button (strictly side-by-side, no stacking/wrapping) */}
+                          <div className="flex shrink-0 items-center justify-between sm:justify-end gap-2.5 sm:gap-3 pt-2.5 lg:pt-0 border-t lg:border-t-0 border-line/50">
                             {/* Status Indicator */}
-                            <div>
+                            <div className="shrink-0">
                               {u.isBanned ? (
                                 <span className="inline-flex items-center gap-1.5 rounded-full border border-rose-500/30 bg-rose-500/10 px-3 py-1 text-xs font-bold text-rose-700 dark:text-rose-400">
                                   <span className="h-2 w-2 rounded-full bg-rose-500 animate-pulse" />
@@ -1726,7 +1730,7 @@ export default function AdminPage() {
                             </div>
 
                             {/* Ban / Unban Button */}
-                            <div>
+                            <div className="shrink-0">
                               {!isCurrentUser && (
                                 <button
                                   type="button"
