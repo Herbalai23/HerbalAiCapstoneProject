@@ -1288,7 +1288,7 @@ export default function AdminPage() {
                         <div className="grid gap-3 border-t border-border pt-4">
                           <label className="grid gap-1 text-sm font-medium text-ink">
                             Evidence classification
-                            <select
+                            <select name={`evidence-class-${suggestion.id}`}
                               value={evidenceClassById[suggestion.id] || ''}
                               onChange={(event) => setEvidenceClassById((current) => ({ ...current, [suggestion.id]: event.target.value }))}
                               className="min-h-11 rounded-lg border border-input bg-card px-3 py-2 text-sm text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -1301,7 +1301,7 @@ export default function AdminPage() {
                           </label>
                           <label className="grid gap-1 text-sm font-medium text-ink">
                             Reviewer notes
-                            <textarea
+                            <textarea name={`review-notes-${suggestion.id}`}
                               value={reviewNotesById[suggestion.id] || ''}
                               onChange={(event) => setReviewNotesById((current) => ({ ...current, [suggestion.id]: event.target.value }))}
                               rows={3}
@@ -1409,7 +1409,7 @@ export default function AdminPage() {
                 {/* Search Bar */}
                 <div className="relative max-w-xs w-full">
                   <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted" aria-hidden="true" />
-                  <input
+                  <input name="librarySearch"
                     type="text"
                     placeholder="Search herbs..."
                     aria-label="Search herbs"
@@ -1512,7 +1512,7 @@ export default function AdminPage() {
                   <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-muted">
                     <Search className="h-3.5 w-3.5" />
                   </span>
-                  <input
+                  <input name="userSearch"
                     type="text"
                     placeholder="Search name, @username, email..."
                     aria-label="Search users"
@@ -1818,7 +1818,7 @@ export default function AdminPage() {
                     <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-muted">
                       <Search className="h-3.5 w-3.5" />
                     </span>
-                    <input
+                    <input name="kbSearch"
                       type="text"
                       placeholder="Search KB items..."
                       value={kbSearch}
@@ -1866,7 +1866,7 @@ export default function AdminPage() {
                   {/* Category Dropdown */}
                   {availableKbCategories.length > 0 && (
                     <div className="relative">
-                      <select
+                      <select name="kbCategoryFilter"
                         aria-label="Filter by Category"
                         value={kbCategoryFilter}
                         onChange={(e) => { setKbCategoryFilter(e.target.value); setKbPage(1); setKbLoading(true); }}
@@ -1941,7 +1941,7 @@ export default function AdminPage() {
                   <label className={`inline-flex items-center gap-1.5 rounded-full bg-[#c66b3d] px-3 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-[#b85e34] ${isImportingKb ? 'cursor-wait opacity-70' : 'cursor-pointer'}`}>
                     {isImportingKb ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
                     {isImportingKb ? 'Importing…' : 'Import JSON'}
-                    <input
+                    <input name="knowledgeImport"
                       type="file"
                       accept="application/json,.json"
                       disabled={isImportingKb}
@@ -2169,7 +2169,7 @@ export default function AdminPage() {
 
                 <div className="relative w-full md:w-72">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted" />
-                  <input
+                  <input name="auditSearch"
                     type="text"
                     placeholder="Filter audit logs..."
                     aria-label="Filter audit logs"
@@ -2296,8 +2296,8 @@ export default function AdminPage() {
             <form onSubmit={handleEditHerbSubmit} className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">Local Name *</label>
-                  <input
+                  <label htmlFor="admin-herb-localName" className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">Local Name *</label>
+                  <input id="admin-herb-localName" name="localName"
                     aria-label="Local Name"
                     type="text"
                     required
@@ -2308,8 +2308,8 @@ export default function AdminPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">Common Name</label>
-                  <input
+                  <label htmlFor="admin-herb-cebuanoName" className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">Common Name</label>
+                  <input id="admin-herb-cebuanoName" name="cebuanoName"
                     aria-label="Common Name"
                     type="text"
                     value={herbFormData.cebuanoName}
@@ -2322,8 +2322,8 @@ export default function AdminPage() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">Scientific Name *</label>
-                  <input
+                  <label htmlFor="admin-herb-scientificName" className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">Scientific Name *</label>
+                  <input id="admin-herb-scientificName" name="scientificName"
                     aria-label="Scientific Name"
                     type="text"
                     required
@@ -2334,8 +2334,8 @@ export default function AdminPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">Category *</label>
-                  <input
+                  <label htmlFor="admin-herb-category" className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">Category *</label>
+                  <input id="admin-herb-category" name="category"
                     aria-label="Category"
                     type="text"
                     required
@@ -2348,8 +2348,8 @@ export default function AdminPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">Medicinal Uses *</label>
-                <textarea
+                <label htmlFor="admin-herb-medicinalUses" className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">Medicinal Uses *</label>
+                <textarea id="admin-herb-medicinalUses" name="medicinalUses"
                   aria-label="Medicinal Uses"
                   required
                   rows={2}
@@ -2361,8 +2361,8 @@ export default function AdminPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">Preparation Method</label>
-                <textarea
+                <label htmlFor="admin-herb-preparationMethod" className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">Preparation Method</label>
+                <textarea id="admin-herb-preparationMethod" name="preparationMethod"
                   aria-label="Preparation Method"
                   rows={2}
                   value={herbFormData.preparationMethod}
@@ -2373,8 +2373,8 @@ export default function AdminPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">Dosage & Frequency</label>
-                <textarea
+                <label htmlFor="admin-herb-dosage" className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">Dosage & Frequency</label>
+                <textarea id="admin-herb-dosage" name="dosage"
                   aria-label="Dosage and Frequency"
                   rows={2}
                   value={herbFormData.dosage}
@@ -2386,8 +2386,8 @@ export default function AdminPage() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">Region Found</label>
-                  <input
+                  <label htmlFor="admin-herb-regionFound" className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">Region Found</label>
+                  <input id="admin-herb-regionFound" name="regionFound"
                     aria-label="Region Found"
                     type="text"
                     value={herbFormData.regionFound}
@@ -2397,8 +2397,8 @@ export default function AdminPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">Image Path / URL</label>
-                  <input
+                  <label htmlFor="admin-herb-imageUrl" className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">Image Path / URL</label>
+                  <input id="admin-herb-imageUrl" name="imageUrl"
                     aria-label="Image Path or URL"
                     type="text"
                     value={herbFormData.imageUrl}
@@ -2410,8 +2410,8 @@ export default function AdminPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">Important Warnings & Precautions</label>
-                <textarea
+                <label htmlFor="admin-herb-warnings" className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">Important Warnings & Precautions</label>
+                <textarea id="admin-herb-warnings" name="warnings"
                   aria-label="Warnings and Precautions"
                   rows={2}
                   value={herbFormData.warnings}
@@ -2461,10 +2461,10 @@ export default function AdminPage() {
 
             <form onSubmit={handleSaveKbItem} className="overflow-y-auto p-6 space-y-4">
               <div className="space-y-1">
-                <label className="block text-xs font-extrabold uppercase tracking-wider text-gray-400">
+                <label htmlFor="admin-kbQuestion" className="block text-xs font-extrabold uppercase tracking-wider text-gray-400">
                   Question *
                 </label>
-                <input
+                <input id="admin-kbQuestion" name="kbQuestion"
                   aria-label="Knowledge question"
                   type="text"
                   required
@@ -2477,10 +2477,10 @@ export default function AdminPage() {
               </div>
 
               <div className="space-y-1">
-                <label className="block text-xs font-extrabold uppercase tracking-wider text-gray-400">
+                <label htmlFor="admin-kbAnswer" className="block text-xs font-extrabold uppercase tracking-wider text-gray-400">
                   Detailed Answer *
                 </label>
-                <textarea
+                <textarea id="admin-kbAnswer" name="kbAnswer"
                   aria-label="Knowledge answer"
                   required
                   minLength={10}
@@ -2513,10 +2513,10 @@ export default function AdminPage() {
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="space-y-1">
-                  <label className="block text-xs font-extrabold uppercase tracking-wider text-gray-400">
+                  <label htmlFor="admin-kbCategory" className="block text-xs font-extrabold uppercase tracking-wider text-gray-400">
                     Category (Optional)
                   </label>
-                  <input
+                  <input id="admin-kbCategory" name="kbCategory"
                     aria-label="Knowledge category"
                     type="text"
                     placeholder="e.g. dosage, preparation"
@@ -2527,10 +2527,10 @@ export default function AdminPage() {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="block text-xs font-extrabold uppercase tracking-wider text-gray-400">
+                  <label htmlFor="admin-kbTags" className="block text-xs font-extrabold uppercase tracking-wider text-gray-400">
                     Tags (Comma Separated)
                   </label>
-                  <input
+                  <input id="admin-kbTags" name="kbTags"
                     aria-label="Knowledge tags"
                     type="text"
                     placeholder="e.g. mint, leaves, fever"
