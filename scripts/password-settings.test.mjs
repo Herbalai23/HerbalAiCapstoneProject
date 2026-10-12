@@ -21,7 +21,7 @@ new Function('exports', feedbackCompiled)(feedbackExports);
 const dialogExports = {};
 new Function('exports', dialogCompiled)(dialogExports);
 const icons = new Proxy({}, { get: () => props => React.createElement('svg', props) });
-const user = { id: 'TEST-settings-user', name: 'TEST settings', email: 'test@example.invalid', username: 'settings_test', avatar: null };
+const user = { id: 'TEST-settings-user', name: 'TEST settings', email: 'test@example.invalid', username: 'settings_test', avatar: null, hasLocalPassword: true, passwordStatus: 'set' };
 const load = (source, react, api, passwordComponent, overrides = {}) => {
   const exports = {};
   const dependency = name => {
@@ -55,7 +55,7 @@ const deferred = () => {
   const promise = new Promise((complete, fail) => { resolve = complete; reject = fail; });
   return { promise, resolve, reject };
 };
-const fixture = (values = {}, post = async () => ({ data: { message: 'TEST neutral response' } }), capability = {}) => {
+const fixture = (values = {}, post = async () => ({ data: { message: 'TEST neutral response' } }), capability = { hasLocalPassword: true, passwordStatus: 'set' }) => {
   const state = [values.current ?? 'TEST-original-password', values.next ?? 'TEST-new-password', values.confirm ?? values.next ?? 'TEST-new-password', false, null, null, null, null];
   const lock = { current: false };
   const refs = [lock, { current: null }, { current: null }];
@@ -106,9 +106,9 @@ test('settings render separately from profile editing with labelled password fie
   assert.deepEqual(forms, ['<form', '</form>', '<form', '</form>']);
 });
 
-test('settings explain optional app-password creation without claiming to know the login provider', () => {
+test('known password settings explain optional app-password recovery without claiming to know the login provider', () => {
   const component = load(compiled, React, {});
-  const markup = renderToStaticMarkup(React.createElement(component, { email: user.email, onChanged() {} }));
+  const markup = renderToStaticMarkup(React.createElement(component, { email: user.email, hasLocalPassword: true, passwordStatus: 'set', onChanged() {} }));
   assert.match(markup, /Create or reset your Herbal-Ai password/);
   assert.match(markup, /haven&#x27;t created a Herbal-Ai password/);
   assert.match(markup, /forgot an existing Herbal-Ai password/);
@@ -131,8 +131,8 @@ for (const capability of [{ hasLocalPassword: false }, { passwordStatus: 'unset'
   });
 }
 
-for (const capability of [{ hasLocalPassword: true, passwordStatus: 'set' }, { hasLocalPassword: null, passwordStatus: 'unknown' }, {}]) {
-  test(`local or legacy-unknown capability retains current-password verification ${JSON.stringify(capability)}`, () => {
+for (const capability of [{ hasLocalPassword: true, passwordStatus: 'set' }, { hasLocalPassword: true }, { passwordStatus: 'set' }]) {
+  test(`known local capability retains current-password verification ${JSON.stringify(capability)}`, () => {
     const component = load(compiled, React, {});
     const markup = renderToStaticMarkup(React.createElement(component, { email: user.email, ...capability, onChanged() {} }));
     assert.match(markup, /Current password/);
@@ -141,6 +141,68 @@ for (const capability of [{ hasLocalPassword: true, passwordStatus: 'set' }, { h
     assert.doesNotMatch(markup, /No password set|>Set Password<\/button>/);
   });
 }
+
+for (const capability of [{ hasLocalPassword: null, passwordStatus: 'unknown' }, { passwordStatus: 'unknown' }, {}]) {
+  test(`legacy capability puts secure setup first without guessing password or provider state ${JSON.stringify(capability)}`, () => {
+    const component = load(compiled, React, {});
+    const tree = React.createElement(component, { email: user.email, ...capability, onChanged() {} });
+    const markup = renderToStaticMarkup(tree);
+    assert.match(markup, />Set Password<\/button>/);
+    assert.match(markup, /Create or reset your Herbal-Ai password using a secure email link/);
+    assert.match(markup, /If you sign in with Google, you do not need your Google password/);
+    assert.doesNotMatch(markup, /No password set|You currently sign in through Google|Email a password link/);
+    assert.match(markup, /<details class=/);
+    assert.doesNotMatch(markup, /<details[^>]*\bopen(?:=|\s|>)/);
+    assert.match(markup, /<summary[^>]*>Already have a Herbal-Ai password\? Change it<\/summary>/);
+    assert.equal((markup.match(/type="password"/g) || []).length, 3);
+    assert.ok(markup.indexOf('Set Password') < markup.indexOf('Current password'));
+  });
+}
+
+test('legacy setup uses the existing authenticated endpoint without writing capability or changing credentials', async () => {
+  const instance = fixture({}, undefined, { hasLocalPassword: null, passwordStatus: 'unknown' });
+  await instance.link();
+  assert.deepEqual(instance.requests, [['/auth/password-setup', {}]]);
+  assert.match(renderToStaticMarkup(instance.render()), /Password link requested/);
+  assert.deepEqual(instance.events, []);
+  assert.equal(instance.closed(), 0);
+  assert.equal(instance.state[0], 'TEST-original-password');
+});
+
+test('legacy change-password disclosure preserves existing password verification when chosen', async () => {
+  const instance = fixture({}, undefined, { hasLocalPassword: null, passwordStatus: 'unknown' });
+  await instance.change();
+  assert.deepEqual(instance.requests, [['/auth/change-password', { currentPassword: 'TEST-original-password', newPassword: 'TEST-new-password' }]]);
+  assert.deepEqual(instance.events, ['auth-logout']);
+  assert.equal(instance.closed(), 1);
+});
+
+for (const status of [429, 503]) {
+  test(`legacy setup HTTP ${status} remains actionable without false success`, async () => {
+    const instance = fixture({}, async () => { throw { response: { status, data: { message: 'TEST link could not be sent.' } } }; }, { passwordStatus: 'unknown' });
+    await instance.link();
+    const feedback = find(instance.render(), element => element.props.id === 'password-link-feedback');
+    assert.equal(feedback.props.role, 'alert');
+    assert.equal(feedback.props.children, 'TEST link could not be sent.');
+    assert.equal(instance.lock.current, false);
+    assert.doesNotMatch(renderToStaticMarkup(instance.render()), /Password link requested/);
+    assert.deepEqual(instance.events, []);
+  });
+}
+
+test('legacy setup prevents duplicate requests while retaining a collapsed change option', async () => {
+  const gate = deferred();
+  const instance = fixture({}, () => gate.promise, { passwordStatus: 'unknown' });
+  const pending = instance.link();
+  const button = find(instance.render(), element => element.type === 'button' && 'aria-busy' in element.props);
+  assert.equal(button.props.disabled, true);
+  await instance.link();
+  await instance.change();
+  assert.equal(instance.requests.length, 1);
+  gate.resolve({ data: {} });
+  await pending;
+  assert.equal(instance.lock.current, false);
+});
 
 test('Google-only Set Password requests an authenticated email link without changing credentials or signing out', async () => {
   const instance = fixture({}, undefined, { hasLocalPassword: false, passwordStatus: 'unset' });
