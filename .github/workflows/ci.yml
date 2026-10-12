@@ -81,6 +81,7 @@ jobs:
           tests/knowledge-page-filters-database.test.ts
           tests/review-concurrency-database.test.ts tests/suggestion-review-email.test.ts
           tests/admin-user-page-database.test.ts tests/list-pagination.test.ts
+          tests/forum-like-notification-database.test.ts tests/forum-like-notification-http.test.ts
           tests/credits-config.test.ts tests/credits-database.test.ts
           tests/knowledge-import-boundary.test.ts tests/helpers/knowledge-import-server-boundary.ts
           tests/dr-ai-introduction.test.ts tests/dr-ai-local-language-retrieval.test.ts
@@ -185,7 +186,7 @@ jobs:
 
       - name: Run library reply retention regressions
         working-directory: herbalaifrontend
-        run: node --test ../scripts/library-discussion.test.mjs
+        run: node --test ../scripts/library-discussion.test.mjs ../scripts/forum-interactions.test.mjs
 
       - name: Run account-scoped request cache regressions
         working-directory: herbalaifrontend

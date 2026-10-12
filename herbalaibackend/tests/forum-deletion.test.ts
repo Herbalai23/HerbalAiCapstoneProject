@@ -24,6 +24,6 @@ describe('Public forum reply deletion', () => {
     const result = await findCommentsByThreadId(1);
     expect(result.map(comment => comment.id)).toEqual([7, 8]);
     expect(result[1]).toEqual(active);
-    expect(findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { threadId: 1 }, orderBy: { date: 'asc' } }));
+    expect(findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { threadId: 1 }, orderBy: [{ date: 'desc' }, { id: 'desc' }] }));
   });
 });

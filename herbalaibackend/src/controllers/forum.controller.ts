@@ -180,11 +180,20 @@ export class ForumController {
         return res.status(404).json({ status: 'error', code: 404, message: 'Discussion thread not found.' });
       }
 
+      if (updated.notification) {
+        try {
+          const { io } = await import('../server.js');
+          io.to(updated.notification.userId).emit('notification', updated.notification);
+        } catch {
+          console.error('Live forum-like notification could not be emitted; the saved notification remains available.');
+        }
+      }
+
       return res.status(200).json({
         status: 'success',
         code: 200,
         message: updated.hasLiked ? 'Thread liked successfully.' : 'Thread unliked successfully.',
-        data: updated,
+        data: { likes: updated.likes, hasLiked: updated.hasLiked },
       });
     } catch (error) {
       next(error);

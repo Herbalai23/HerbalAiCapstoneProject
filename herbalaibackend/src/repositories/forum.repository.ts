@@ -1,5 +1,5 @@
 import { prisma } from "../lib/prisma.js";
-import type { Prisma } from "@prisma/client";
+import type { Notification, Prisma } from "@prisma/client";
 import { runAuditedMutation } from "./audit.repository.js";
 
 export const createThread = async (data: {
@@ -114,7 +114,9 @@ export const incrementThreadViews = async (id: number) => {
 
 export const toggleThreadLike = async (threadId: number, userId: string) => {
   return prisma.$transaction(async (tx) => {
-    const thread = await tx.thread.findFirst({ where: { id: threadId, isDeleted: false }, select: { id: true } });
+    const [thread] = await tx.$queryRaw<Array<{ id: number; authorId: string; title: string }>>`
+      SELECT id, "authorId", title FROM "Thread" WHERE id = ${threadId} AND "isDeleted" = false FOR UPDATE
+    `;
     if (!thread) return null;
     const key = { threadId_userId: { threadId, userId } };
     const existing = await tx.threadLike.findUnique({ where: key });
@@ -127,7 +129,18 @@ export const toggleThreadLike = async (threadId: number, userId: string) => {
 
     const likes = await tx.threadLike.count({ where: { threadId } });
     await tx.thread.update({ where: { id: threadId }, data: { likes } });
-    return { likes, hasLiked: !existing };
+    let notification: Notification | null = null;
+    if (!existing && thread.authorId !== userId) {
+      const liker = await tx.user.findUnique({ where: { id: userId }, select: { name: true } });
+      notification = await tx.notification.create({ data: {
+        userId: thread.authorId,
+        title: `${liker?.name || 'A community member'} liked your discussion`,
+        message: `New like on “${thread.title}”.`,
+        type: 'COMMUNITY_LIKE',
+        link: `/community/${threadId}`,
+      } });
+    }
+    return { likes, hasLiked: !existing, notification };
   });
 };
 
@@ -233,9 +246,7 @@ export const findCommentsByThreadId = async (threadId: number) => {
         },
       },
     },
-    orderBy: {
-      date: 'asc',
-    },
+    orderBy: [{ date: 'desc' }, { id: 'desc' }],
   });
   return comments.map(comment => comment.isDeleted
     ? { ...comment, content: '[This reply has been deleted by the author or moderator.]' }

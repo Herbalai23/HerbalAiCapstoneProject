@@ -7,6 +7,7 @@ import { useAuth } from '../../../context/AuthContext';
 import Navbar from '../../../components/Navbar';
 import Footer from '../../../components/Footer';
 import api from '../../../lib/axios';
+import { newestForumComments } from '../../../lib/forum-comments';
 import io from 'socket.io-client';
 import UserProfileModal from '../../../components/UserProfileModal';
 import {
@@ -71,6 +72,7 @@ export default function ThreadDetailPage({
 
   const [thread, setThread] = useState<ThreadDetail | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
+  const orderedComments = React.useMemo(() => newestForumComments(comments), [comments]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -506,7 +508,7 @@ export default function ThreadDetailPage({
             </p>
           ) : (
             <div className="space-y-3">
-              {comments.map((comment) => {
+              {orderedComments.map((comment) => {
                 const isCommentAuthor = user && comment.authorId === user.id;
                 const isCommentDeletable = (isCommentAuthor || isAdmin) && !comment.isDeleted;
                 const parentComment = comment.parentCommentId

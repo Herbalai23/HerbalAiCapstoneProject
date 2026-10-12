@@ -91,6 +91,22 @@ test('duplicate realtime notifications cannot duplicate rows or inflate the coun
   assert.equal(state.notifications().length, 1); assert.equal(state.unread(), 1); cleanup();
 });
 
+test('a forum like belongs to Community and refreshes the owner bell without duplicate unread counts', async () => {
+  const category = new Function(compile(callback('getNotificationCategory')))();
+  assert.equal(category('COMMUNITY_LIKE'), 'community');
+  const liked = notification(31, { type: 'COMMUNITY_LIKE', link: '/community/7' });
+  const state = fixture({ get: async () => snapshot([liked]) });
+  const cleanup = state.setup();
+  await drain();
+  state.listeners.get('notification')(liked);
+  state.listeners.get('notification')(liked);
+  await drain();
+  assert.equal(state.notifications().length, 1);
+  assert.equal(state.unread(), 1);
+  assert.equal(state.notifications()[0].link, '/community/7');
+  cleanup();
+});
+
 test('another account event cannot enter the current list or play its sound', async () => {
   const state = fixture(); const cleanup = state.setup(); await drain();
   state.listeners.get('notification')(notification(2, { userId: 'owner-B' })); await drain();
