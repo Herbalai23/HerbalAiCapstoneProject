@@ -6,9 +6,10 @@ import { createServer } from 'node:http';
 import { once } from 'node:events';
 import ts from '../herbalaifrontend/node_modules/typescript/lib/typescript.js';
 
-const source = await readFile(new URL('../herbalaifrontend/components/NotificationBell.tsx', import.meta.url), 'utf8');
+const source = await readFile(new URL('../herbalaifrontend/src/features/notifications/NotificationBell.tsx', import.meta.url), 'utf8');
 const helper = async name => {
-  const source = await readFile(new URL(`../herbalaifrontend/lib/${name}.ts`, import.meta.url), 'utf8');
+  const directory = name === 'refresh-coordinator' ? 'lib' : 'features/notifications';
+  const source = await readFile(new URL(`../herbalaifrontend/src/${directory}/${name}.ts`, import.meta.url), 'utf8');
   const output = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText;
   return import(`data:text/javascript;base64,${Buffer.from(output).toString('base64')}`);
 };

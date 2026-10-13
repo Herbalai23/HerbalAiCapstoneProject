@@ -10,12 +10,12 @@ const { renderToStaticMarkup } = requireFrontend('react-dom/server');
 const compile = async path => ts.transpileModule(await readFile(new URL(path, import.meta.url), 'utf8'), {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true },
 }).outputText;
-const compiled = await compile('../herbalaifrontend/components/PasswordSettings.tsx');
-const profileCompiled = await compile('../herbalaifrontend/components/ProfileEditorModal.tsx');
-const dialogCompiled = await compile('../herbalaifrontend/lib/dialog-focus.ts');
-const forgotCompiled = await compile('../herbalaifrontend/app/forgot-password/page.tsx');
-const resetCompiled = await compile('../herbalaifrontend/app/reset-password/page.tsx');
-const feedbackCompiled = await compile('../herbalaifrontend/lib/request-feedback.ts');
+const compiled = await compile('../herbalaifrontend/src/features/account/PasswordSettings.tsx');
+const profileCompiled = await compile('../herbalaifrontend/src/features/account/ProfileEditorModal.tsx');
+const dialogCompiled = await compile('../herbalaifrontend/src/lib/dialog-focus.ts');
+const forgotCompiled = await compile('../herbalaifrontend/src/features/auth/ForgotPasswordScreen.tsx');
+const resetCompiled = await compile('../herbalaifrontend/src/features/auth/ResetPasswordScreen.tsx');
+const feedbackCompiled = await compile('../herbalaifrontend/src/lib/request-feedback.ts');
 const feedbackExports = {};
 new Function('exports', feedbackCompiled)(feedbackExports);
 const dialogExports = {};
@@ -28,13 +28,13 @@ const load = (source, react, api, passwordComponent, overrides = {}) => {
     if (Object.hasOwn(overrides, name)) return overrides[name];
     if (name === 'react') return react;
     if (name === 'lucide-react') return icons;
-    if (name === '../lib/axios' || name === '../../lib/axios') return { __esModule: true, default: api };
-    if (name === '../lib/request-feedback' || name === '../../lib/request-feedback') return feedbackExports;
-    if (name === '../context/AuthContext') return { useAuth: () => ({ user, updateProfile: async () => {} }) };
-    if (name === './PasswordSettings') return { __esModule: true, default: passwordComponent };
-    if (name === '../lib/dialog-focus') return dialogExports;
-    if (name === '../../components/AuthBrandPanel' || name.endsWith('/AuthBrandPanel')) return () => null;
-    if (name === '../../components/DisplayPreferences' || name.endsWith('/DisplayPreferences')) return { ThemeToggle: () => null };
+    if (name === '@/lib/axios' || name === '@/lib/axios') return { __esModule: true, default: api };
+    if (name === '@/lib/request-feedback' || name === '@/lib/request-feedback') return feedbackExports;
+    if (name === '@/lib/context/AuthContext') return { useAuth: () => ({ user, updateProfile: async () => {} }) };
+    if (name === '@/features/account/PasswordSettings') return { __esModule: true, default: passwordComponent };
+    if (name === '@/lib/dialog-focus') return dialogExports;
+    if (name === '@/features/auth/AuthBrandPanel' || name.endsWith('/AuthBrandPanel')) return () => null;
+    if (name === '@/components/core/DisplayPreferences' || name.endsWith('/DisplayPreferences')) return { ThemeToggle: () => null };
     return requireFrontend(name);
   };
   new Function('require', 'exports', source)(dependency, exports);
@@ -278,7 +278,7 @@ const recoveryFixture = (surface, post) => {
     return [state[index], value => { state[index] = value; }];
   } };
   const overrides = surface === 'profile' ? {
-    '../context/AuthContext': { useAuth: () => ({ user, updateProfile: body => post('/auth/me', body) }) },
+    '@/lib/context/AuthContext': { useAuth: () => ({ user, updateProfile: body => post('/auth/me', body) }) },
   } : pageOverrides('TEST-only-reset-token');
   const source = surface === 'profile' ? profileCompiled : surface === 'forgot' ? forgotCompiled : resetCompiled;
   const component = load(source, hooks, { post }, () => null, overrides);

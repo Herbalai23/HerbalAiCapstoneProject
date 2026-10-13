@@ -1,7 +1,7 @@
 import { prisma } from './prisma.js';
 import { verifyAccessToken } from '../utils/jwt.js';
 import type { JwtPayload } from '../utils/jwt.js';
-import { isAccountBanned, banMessage } from './user-ban.js';
+import { isAccountBanned, banMessage } from '../domain/user-ban.js';
 
 type AccessSession =
   | { status: 'valid'; payload: JwtPayload }

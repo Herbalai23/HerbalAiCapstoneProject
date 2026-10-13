@@ -1,6 +1,6 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
-import { eligibleAccountFilter, isAccountBanned } from '../lib/user-ban.js';
+import { eligibleAccountFilter, isAccountBanned } from '../domain/user-ban.js';
 import type { AdminUserQuery } from '../lib/admin-user-query.js';
 
 export const findAdminUserPage = async (query: AdminUserQuery) => {

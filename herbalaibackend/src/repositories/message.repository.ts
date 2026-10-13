@@ -1,7 +1,7 @@
 import { prisma } from "../lib/prisma.js";
 import { Prisma } from "@prisma/client";
 import type { MessageCursor } from "../utils/message-cursor.js";
-import { eligibleAccountFilter } from '../lib/user-ban.js';
+import { eligibleAccountFilter } from '../domain/user-ban.js';
 
 const missingMessageToNull = (error: unknown): null => {
   if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") return null;

@@ -10,7 +10,7 @@ vi.mock('../src/utils/password.js', () => ({ comparePassword: mocks.comparePassw
 vi.mock('../src/utils/jwt.js', () => ({ generateAccessToken: () => 'TEST-access', generateRefreshToken: () => 'TEST-refresh' }));
 vi.mock('../src/lib/mailer.js', () => ({ sendMail: vi.fn(), ensureMailReady: vi.fn() }));
 
-import { passwordCapability } from '../src/lib/password-capability.js';
+import { passwordCapability } from '../src/domain/password-capability.js';
 import { login } from '../src/services/auth.service.js';
 
 const account = { id: 'TEST-account', username: 'test_user', email: 'test@example.invalid',

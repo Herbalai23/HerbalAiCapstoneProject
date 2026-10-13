@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { banInputSchema, banExpiry, banMessage, eligibleAccountFilter, isAccountBanned } from '../src/lib/user-ban.js';
+import { banInputSchema, banExpiry, banMessage, eligibleAccountFilter, isAccountBanned } from '../src/domain/user-ban.js';
 
 const now = new Date('2026-10-08T04:00:00Z');
 const reason = 'TEST ONLY moderation check';

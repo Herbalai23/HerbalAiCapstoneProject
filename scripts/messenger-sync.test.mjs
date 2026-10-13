@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import ts from '../herbalaifrontend/node_modules/typescript/lib/typescript.js';
 
-const source = await readFile(new URL('../herbalaifrontend/lib/messenger-sync.ts', import.meta.url), 'utf8');
+const source = await readFile(new URL('../herbalaifrontend/src/features/messenger/messenger-sync.ts', import.meta.url), 'utf8');
 const output = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText;
 const { mergeConversationMessages, createHistoryRequests, startMessengerConnection, updateConversationPreview, reconcileConversationPreviews } = await import(`data:text/javascript;base64,${Buffer.from(output).toString('base64')}`);
 const message = (id, contact = 'alpha', extra = {}) => ({ id, senderId: 'self', receiverId: contact, time: '2026-10-01T00:00:00.000Z', content: `TEST ONLY ${id}`, ...extra });
@@ -50,7 +50,8 @@ test('uses deterministic contact ordering for equal activity times and ignores u
   assert.deepEqual(updateConversationPreview(result, previewMessage(2, 'beta', initial[0].lastTime, { senderId: undefined, receiverId: 'self' }), 'self'), result);
 });
 
-const pageSource = await readFile(new URL('../herbalaifrontend/app/messenger/page.tsx', import.meta.url), 'utf8');
+const pageSource = (await Promise.all(['MessengerScreen.tsx', 'useMessengerState.ts', 'useMessengerConnection.ts']
+  .map(path => readFile(new URL(`../herbalaifrontend/src/features/messenger/${path}`, import.meta.url), 'utf8')))).join('\n');
 const pageSyntax = ts.createSourceFile('messenger.tsx', pageSource, ts.ScriptTarget.ES2022, true, ts.ScriptKind.TSX);
 const callbacks = new Map();
 const findCallbacks = node => {

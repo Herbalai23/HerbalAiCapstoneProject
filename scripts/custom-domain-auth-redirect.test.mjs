@@ -16,10 +16,10 @@ const compile = source => ts.transpileModule(source, {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
 }).outputText;
 const proxyExports = {};
-new Function('require', 'exports', compile(await readSource('herbalaifrontend/proxy.ts')))(requireFrontend, proxyExports);
+new Function('require', 'exports', compile(await readSource('herbalaifrontend/src/proxy.ts')))(requireFrontend, proxyExports);
 const callbackExports = {};
-new Function('exports', compile(await readSource('herbalaifrontend/lib/auth-redirect.ts')))(callbackExports);
-const signinSource = await readSource('herbalaifrontend/app/signin/page.tsx');
+new Function('exports', compile(await readSource('herbalaifrontend/src/lib/auth-redirect.ts')))(callbackExports);
+const signinSource = await readSource('herbalaifrontend/src/features/auth/SignInScreen.tsx');
 const signinTree = ts.createSourceFile('signin.tsx', signinSource, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
 let submitDeclaration;
 const visit = node => {

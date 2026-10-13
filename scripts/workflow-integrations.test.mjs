@@ -7,15 +7,27 @@ const read = path => readFile(new URL(`../herbalaifrontend/${path}`, import.meta
 const compile = source => ts.transpileModule(source, {
   compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
 }).outputText;
-const adminSource = await read('app/admin/page.tsx');
-const suggestionSource = await read('app/suggest/page.tsx');
-const signupSource = await read('app/signup/page.tsx');
+const adminSource = (await Promise.all([
+  'src/features/admin/useAdminWorkspace.ts',
+  'src/features/admin/actions/review-actions.ts',
+  'src/features/admin/actions/herb-actions.ts',
+  'src/features/admin/actions/knowledge-base-actions.ts',
+  'src/features/admin/actions/user-actions.ts',
+].map(read))).join('\n');
+const adminSections = Object.fromEntries(await Promise.all(
+  ['UsersSection', 'HerbsSection', 'KnowledgeBaseSection', 'AuditLogsSection'].map(async name =>
+    [name, await read(`src/features/admin/sections/${name}.tsx`)])));
+const suggestionSource = [
+  await read('src/features/suggestions/SuggestHerbScreen.tsx'),
+  await read('src/features/suggestions/useSuggestionSubmission.ts'),
+].join('\n');
+const signupSource = await read('src/features/auth/SignUpScreen.tsx');
 const suggestionReview = {};
-new Function('exports', compile(await read('lib/suggestion-review.ts')))(suggestionReview);
+new Function('exports', compile(await read('src/features/suggestions/suggestion-review.ts')))(suggestionReview);
 const sourcePolicy = {};
-new Function('exports', compile(await read('lib/knowledge-source.ts')))(sourcePolicy);
+new Function('exports', compile(await read('src/features/admin/knowledge-source.ts')))(sourcePolicy);
 const names = {};
-new Function('exports', compile(await read('lib/registration-name.ts')))(names);
+new Function('exports', compile(await read('src/validation/registration-name.ts')))(names);
 
 const initializer = (source, name) => {
   const parsed = ts.createSourceFile('review.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
@@ -112,7 +124,7 @@ test('users provider failures are not reported as a successful empty search', as
 });
 
 test('all Users filter interactions reset pagination without altering the server-returned list', () => {
-  const parsed = ts.createSourceFile('admin.tsx', adminSource, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const parsed = ts.createSourceFile('UsersSection.tsx', adminSections.UsersSection, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   const handlers = [];
   const visit = node => {
     if (ts.isJsxAttribute(node) && ['onChange', 'onClick'].includes(node.name.getText(parsed))) {
@@ -127,7 +139,7 @@ test('all Users filter interactions reset pagination without altering the server
   assert.equal(initializer(adminSource, 'filteredUsersList'), 'usersWithBanStatus');
   assert.match(adminSource, /setDebouncedUserSearch\(trimmedUserSearch\), 350/);
   assert.match(initializer(adminSource, 'handleBanSaved'), /setUsersRefresh/);
-  assert.match(adminSource, /usersLoadFailed \? 'Retry' : 'Clear search & filters'/);
+  assert.match(adminSections.UsersSection, /usersLoadFailed \? 'Retry' : 'Clear search & filters'/);
 });
 
 const approval = (selection, status = 'UNASSESSED') => {
@@ -214,7 +226,7 @@ test('unavailable source retains citation note but cannot become an active link'
   assert.equal(result.unavailable, true);
   assert.equal(result.availabilityNote, historical.availability.note);
   assert.equal(JSON.stringify(metadata), snapshot);
-  assert.match(adminSource, /primarySource\.availabilityNote/);
+  assert.match(adminSections.KnowledgeBaseSection, /primarySource\.availabilityNote/);
 });
 
 test('available source retains its supporting link and unsafe URL schemes are not linked', () => {
@@ -310,14 +322,14 @@ test('leaving the page cancels a pending edit-link result rather than overwritin
 });
 
 test('admin searches have explicit labels and audit loading cannot claim an empty history', () => {
-  assert.match(adminSource, /aria-label="Search herbs"/);
-  assert.match(adminSource, /aria-label="Search knowledge base facts"/);
-  assert.match(adminSource, /aria-label="Filter audit logs"/);
+  assert.match(adminSections.HerbsSection, /aria-label="Search herbs"/);
+  assert.match(adminSections.KnowledgeBaseSection, /aria-label="Search knowledge base facts"/);
+  assert.match(adminSections.AuditLogsSection, /aria-label="Filter audit logs"/);
   assert.match(adminSource, /\[kbLoading, setKbLoading\] = useState\(true\)/);
   assert.match(adminSource, /\[auditLoading, setAuditLoading\] = useState\(true\)/);
-  assert.match(adminSource, /auditLoading \|\| auditLoadFailed \|\| auditLogs.length === 0/);
-  assert.match(adminSource, /Loading audit logs…/);
-  assert.match(adminSource, /Audit logs could not be loaded/);
+  assert.match(adminSections.AuditLogsSection, /auditLoading \|\| auditLoadFailed \|\| auditLogs.length === 0/);
+  assert.match(adminSections.AuditLogsSection, /Loading audit logs…/);
+  assert.match(adminSections.AuditLogsSection, /Audit logs could not be loaded/);
 });
 
 test('revision editor observes in-page query navigation within a production-safe Suspense boundary', () => {

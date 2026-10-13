@@ -2,7 +2,7 @@ name: Herbal AI Continuous Integration (CI)
 
 on:
   push:
-    branches: [ "main", "master", "develop", "codex/readability-accessibility", "codex/mvp-acceptance-ci" ]
+    branches: [ "main", "master", "develop", "codex/readability-accessibility", "codex/mvp-acceptance-ci", "codex/architecture-refactor-preview-20261013" ]
   pull_request:
     branches: [ "main", "master", "develop" ]
 
@@ -128,6 +128,10 @@ jobs:
         working-directory: herbalaifrontend
         run: npm ci
 
+      - name: Check architectural boundaries and unchanged page URLs
+        working-directory: herbalaifrontend
+        run: node --test ../scripts/architecture.test.mjs
+
       - name: Run Frontend Typecheck
         working-directory: herbalaifrontend
         run: npx tsc --noEmit
@@ -142,7 +146,11 @@ jobs:
 
       - name: Run Messenger recovery regressions
         working-directory: herbalaifrontend
-        run: node --test ../scripts/messenger-sync.test.mjs
+        run: node --test ../scripts/messenger-sync.test.mjs ../scripts/messenger-connection-hook.test.mjs ../scripts/messenger-state-hook.test.mjs
+
+      - name: Run suggestion submission state regressions
+        working-directory: herbalaifrontend
+        run: node --test ../scripts/suggestions-state-hook.test.mjs
 
       - name: Run session refresh recovery regressions
         working-directory: herbalaifrontend
@@ -174,7 +182,7 @@ jobs:
 
       - name: Run administrator logout regressions
         working-directory: herbalaifrontend
-        run: node --test ../scripts/admin-logout.test.mjs ../scripts/workflow-integrations.test.mjs
+        run: node --test ../scripts/admin-logout.test.mjs ../scripts/admin-sections.test.mjs ../scripts/admin-workspace-actions.test.mjs ../scripts/workflow-integrations.test.mjs
 
       - name: Run library keyboard regressions
         working-directory: herbalaifrontend

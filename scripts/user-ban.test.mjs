@@ -11,8 +11,8 @@ const compile = async path => ts.transpileModule(await readFile(new URL(path, im
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true },
 }).outputText;
 const policy = {};
-new Function('exports', await compile('../herbalaifrontend/lib/user-ban.ts'))(policy);
-const componentSource = await compile('../herbalaifrontend/components/UserBanDialog.tsx');
+new Function('exports', await compile('../herbalaifrontend/src/features/admin/user-ban.ts'))(policy);
+const componentSource = await compile('../herbalaifrontend/src/features/admin/UserBanDialog.tsx');
 const target = { id: 'TEST-ban-target', name: 'TEST QA', username: 'TEST_QA', isBanned: false };
 const find = (element, predicate) => {
   if (!React.isValidElement(element)) return undefined;
@@ -35,10 +35,10 @@ const fixture = (values = {}, post = async () => ({ data: { status: 'success', d
   } };
   const dependency = name => {
     if (name === 'react') return hooks;
-    if (name === '../lib/user-ban') return policy;
-    if (name === '../lib/axios') return { __esModule: true, default: { post: async (...args) => { requests.push(args); return post(...args); } } };
-    if (name === './AccessibleDialog') return { __esModule: true, default: ({ children, label }) => React.createElement('section', { 'aria-label': label }, children) };
-    if (name === './ui/button') return { Button: props => React.createElement('button', props) };
+    if (name === '@/features/admin/user-ban') return policy;
+    if (name === '@/lib/axios') return { __esModule: true, default: { post: async (...args) => { requests.push(args); return post(...args); } } };
+    if (name === '@/components/shared/AccessibleDialog') return { __esModule: true, default: ({ children, label }) => React.createElement('section', { 'aria-label': label }, children) };
+    if (name === '@/components/ui/button') return { Button: props => React.createElement('button', props) };
     return requireFrontend(name);
   };
   const exports = {};
@@ -144,7 +144,8 @@ test('frontend ban status expires at the boundary and preserves legacy/invalid-d
 });
 
 test('admin page uses the confirmed dialog, returned account state and cache invalidation', async () => {
-  const source = await readFile(new URL('../herbalaifrontend/app/admin/page.tsx', import.meta.url), 'utf8');
+  const source = (await Promise.all(['AdminScreen.tsx', 'useAdminWorkspace.ts', 'actions/user-actions.ts']
+    .map(path => readFile(new URL(`../herbalaifrontend/src/features/admin/${path}`, import.meta.url), 'utf8')))).join('\n');
   assert.match(source, /<UserBanDialog user=\{banTarget\}/);
   assert.match(source, /invalidateApiGetCache\('\/auth\/users'\)/);
   assert.match(source, /invalidateApiGetCache\('\/admin\/audit-logs'\)/);

@@ -4,8 +4,8 @@ import { ENV } from "../config/env.js";
 import { TtlCache } from "../lib/ttl-cache.js";
 import { BatchedLookup } from "../lib/batched-lookup.js";
 import { runAuditedMutation } from "./audit.repository.js";
-import { banInputSchema, banExpiry, eligibleAccountFilter, isAccountBanned } from '../lib/user-ban.js';
-import type { BanInput } from '../lib/user-ban.js';
+import { banInputSchema, banExpiry, eligibleAccountFilter, isAccountBanned } from '../domain/user-ban.js';
+import type { BanInput } from '../domain/user-ban.js';
 import { notifySessionInvalidated } from '../lib/session-invalidation.js';
 
 const userSessionCache = new TtlCache(ENV.AUTH_USER_CACHE_MAX_ENTRIES);

@@ -2,24 +2,32 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
+import path from 'node:path';
 import ts from '../herbalaifrontend/node_modules/typescript/lib/typescript.js';
 
 const requireFrontend = createRequire(new URL('../herbalaifrontend/package.json', import.meta.url));
 const React = requireFrontend('react');
-const source = await readFile(new URL('../herbalaifrontend/app/admin/page.tsx', import.meta.url), 'utf8');
+const source = await readFile(new URL('../herbalaifrontend/src/features/admin/AdminScreen.tsx', import.meta.url), 'utf8');
 const compiled = ts.transpileModule(source, {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true },
 }).outputText;
+const adminModules = Object.fromEntries(await Promise.all([
+  'useAdminWorkspace', 'admin-feedback', 'actions/review-actions', 'actions/herb-actions',
+  'actions/knowledge-base-actions', 'actions/user-actions',
+].map(async name => [`@/features/admin/${name}`, ts.transpileModule(
+  await readFile(new URL(`../herbalaifrontend/src/features/admin/${name}.ts`, import.meta.url), 'utf8'),
+  { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true } },
+).outputText])));
 const banPolicy = {};
 const knowledgeSource = {};
 const suggestionReview = {};
-new Function('exports', ts.transpileModule(await readFile(new URL('../herbalaifrontend/lib/suggestion-review.ts', import.meta.url), 'utf8'), {
+new Function('exports', ts.transpileModule(await readFile(new URL('../herbalaifrontend/src/features/suggestions/suggestion-review.ts', import.meta.url), 'utf8'), {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
 }).outputText)(suggestionReview);
-new Function('exports', ts.transpileModule(await readFile(new URL('../herbalaifrontend/lib/knowledge-source.ts', import.meta.url), 'utf8'), {
+new Function('exports', ts.transpileModule(await readFile(new URL('../herbalaifrontend/src/features/admin/knowledge-source.ts', import.meta.url), 'utf8'), {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
 }).outputText)(knowledgeSource);
-new Function('exports', ts.transpileModule(await readFile(new URL('../herbalaifrontend/lib/user-ban.ts', import.meta.url), 'utf8'), {
+new Function('exports', ts.transpileModule(await readFile(new URL('../herbalaifrontend/src/features/admin/user-ban.ts', import.meta.url), 'utf8'), {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
 }).outputText)(banPolicy);
 const children = element => React.isValidElement(element) ? React.Children.toArray(element.props.children) : [];
@@ -61,24 +69,35 @@ const fixture = ({ logout = async () => {}, role = 'admin', loading = false } = 
     },
   };
   const wrapper = props => React.createElement('div', props, props.children);
+  const evaluatedModules = new Map();
+  const loadAdminModule = name => {
+    if (evaluatedModules.has(name)) return evaluatedModules.get(name);
+    const exports = {};
+    evaluatedModules.set(name, exports);
+    const require = specifier => dependency(specifier.startsWith('.')
+      ? path.posix.normalize(path.posix.dirname(name) + '/' + specifier) : specifier);
+    new Function('require', 'exports', adminModules[name])(require, exports);
+    return exports;
+  };
   const dependency = name => {
+    if (adminModules[name]) return loadAdminModule(name);
     if (name === 'react') return hooks;
     if (name === 'next/navigation') return { useRouter: () => ({ push: path => navigations.push(path) }) };
     if (name === 'next/dynamic') return () => wrapper;
-    if (name === '../../context/AuthContext') return { useAuth: () => ({
+    if (name === '@/lib/context/AuthContext') return { useAuth: () => ({
       user: { id: 'TEST-admin', name: 'TEST admin', role },
       loading, isAuthenticated: true, sessionUnavailable: false, checkSession: async () => {},
       logout: async () => { calls++; return logout(); },
     }) };
-    if (name === '../../lib/axios') return {};
-    if (name === '../../lib/user-ban') return banPolicy;
-    if (name === '../../lib/knowledge-source') return knowledgeSource;
-    if (name === '../../lib/suggestion-review') return suggestionReview;
-    if (name === '../../lib/request-cache') return { cachedApiGet: async () => {}, invalidateApiGetCache() {} };
-    if (name === '../../components/DisplayPreferences') return { ThemeToggle: wrapper };
-    if (name === '../../components/ui/button') return { Button: props => React.createElement('button', props, props.children) };
-    if (name === '../../components/ui/card') return { Card: wrapper, CardContent: wrapper, CardHeader: wrapper, CardTitle: wrapper };
-    if (name.startsWith('../../components/')) return wrapper;
+    if (name === '@/lib/axios') return {};
+    if (name === '@/features/admin/user-ban') return banPolicy;
+    if (name === '@/features/admin/knowledge-source') return knowledgeSource;
+    if (name === '@/features/suggestions/suggestion-review') return suggestionReview;
+    if (name === '@/lib/request-cache') return { cachedApiGet: async () => {}, invalidateApiGetCache() {} };
+    if (name === '@/components/core/DisplayPreferences') return { ThemeToggle: wrapper };
+    if (name === '@/components/ui/button') return { Button: props => React.createElement('button', props, props.children) };
+    if (name === '@/components/ui/card') return { Card: wrapper, CardContent: wrapper, CardHeader: wrapper, CardTitle: wrapper };
+    if (name.startsWith('@/components/') || name.startsWith('@/features/')) return wrapper;
     if (name === 'lucide-react') return new Proxy({}, { get: () => props => React.createElement('svg', props) });
     return requireFrontend(name);
   };

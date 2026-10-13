@@ -21,7 +21,8 @@ const loadComponent = async relativePath => {
   const exports = {};
   const require = name => {
     if (name === 'next/link') return link;
-    if (name === './BrandMark') return () => React.createElement('svg', { 'aria-hidden': true });
+    if (name === '@/features/sources/SourcesScreen') return page;
+    if (name === '@/components/core/BrandMark') return () => React.createElement('svg', { 'aria-hidden': true });
     if (name.endsWith('/Navbar') || name.endsWith('/Footer')) return () => null;
     if (name.includes('external-links')) {
       return {
@@ -42,12 +43,13 @@ const loadComponent = async relativePath => {
   return exports;
 };
 
-const page = await loadComponent('../herbalaifrontend/app/sources/page.tsx');
-const footer = await loadComponent('../herbalaifrontend/components/Footer.tsx');
+const page = await loadComponent('../herbalaifrontend/src/features/sources/SourcesScreen.tsx');
+const route = await loadComponent('../herbalaifrontend/src/app/(public)/sources/page.tsx');
+const footer = await loadComponent('../herbalaifrontend/src/components/core/Footer.tsx');
 
 test('sources route has metadata, Library navigation and historical-source limitations', () => {
   const html = renderToStaticMarkup(React.createElement(page.default));
-  assert.equal(page.metadata.title, 'Sources & Methodology | Herbal-Ai');
+  assert.equal(route.metadata.title, 'Sources & Methodology | Herbal-Ai');
   assert.equal((html.match(/<h1\b/g) ?? []).length, 1);
   assert.match(html, /href="\/library"/);
   assert.match(html, /href="https:\/\/powo.science.kew.org\/"/);

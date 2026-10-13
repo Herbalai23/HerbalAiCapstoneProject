@@ -5,7 +5,7 @@ import { prisma, closeDatabasePool } from '../src/lib/prisma.js';
 import { findSuggestionHistoryPage } from '../src/repositories/suggest.repository.js';
 import { confirmLocalPassword, replacePassword } from '../src/repositories/user.repository.js';
 import { createToken, redeemAccountToken } from '../src/repositories/token.repository.js';
-import { passwordCapability } from '../src/lib/password-capability.js';
+import { passwordCapability } from '../src/domain/password-capability.js';
 import { adminEditDatabaseBoundary } from './helpers/admin-edit-database-boundary.js';
 
 const enabled = adminEditDatabaseBoundary(process.env.HERBALAI_TEST_DATABASE_URL, ENV.DATABASE_URL, Boolean(process.env.CI));

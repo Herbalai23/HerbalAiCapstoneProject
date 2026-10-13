@@ -1,4 +1,19 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Herbal-Ai frontend
+
+Start with [the project map and plain-English debugging guide](../ARCHITECTURE.md).
+
+- `src/app`: website addresses, page metadata, root layout and global styles.
+- `src/features`: actual screens and feature-specific components/helpers.
+- `src/components/core`: navigation, footer, branding, theme and PWA integration.
+- `src/components/shared`: reusable dialogs, images and fallback states.
+- `src/components/ui`: buttons, inputs, cards, badges and alerts.
+- `src/lib`: shared API connection, caching and session context.
+- `src/validation`: registration name rules.
+- `src/data`: regional plant-name reference data, not live database tables.
+- `src/proxy.ts`: protected-page redirects; backend authorization still decides access.
+- `public`: public images, favicon and service worker.
+
+Route groups such as `(auth)` organize files without changing URLs or granting access.
 
 ## Getting Started
 
@@ -18,7 +33,7 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 
 ## UI components
 
-Reusable controls in `components/ui/` follow the shadcn/ui open-code pattern. `components.json` configures the CLI for this Next.js and Tailwind CSS project. To add another component, run `npx shadcn@latest add <component>` from this directory, then review its classes against the light and dark theme tokens in `app/globals.css`.
+Reusable controls in `src/components/ui/` follow the shadcn/ui open-code pattern. `components.json` points to `src/app/globals.css`. Keep existing classes and theme tokens when editing controls.
 
 Home, Library, and navigation currently use the shared Button, Input, Badge, and Alert components. Dialogs and account menus still use the existing custom components.
 
@@ -26,9 +41,13 @@ Home, Library, and navigation currently use the shared Button, Input, Badge, and
 
 The homepage hero uses a resized [photograph of Mt. Pulag](https://commons.wikimedia.org/wiki/File:Panoramic_Shot_of_Mt._Pulag_Summit_and_Grassland.jpg) by Bien02, licensed [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). It is displayed with a crop and dark overlay for readable text.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+To edit the homepage, open `src/features/home/HomeScreen.tsx`. The thin `src/app/(public)/page.tsx` file only connects its URL to that screen.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Fonts remain self-hosted Newsreader, Plus Jakarta Sans and JetBrains Mono.
+
+## Validation
+
+Run `npm run check:architecture`, `npm run lint`, `npm run build` and `npx tsc --noEmit`. Configure local API/socket addresses for testing; do not use production credentials.
 
 ## Learn More
 

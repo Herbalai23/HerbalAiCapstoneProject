@@ -11,8 +11,8 @@ const compile = source => ts.transpileModule(source, {
 }).outputText;
 const readSource = path => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 const callbackExports = {};
-new Function('exports', compile(await readSource('herbalaifrontend/lib/auth-redirect.ts')))(callbackExports);
-const routeCompiled = compile(await readSource('herbalaifrontend/app/api/auth/google/complete/route.ts'));
+new Function('exports', compile(await readSource('herbalaifrontend/src/lib/auth-redirect.ts')))(callbackExports);
+const routeCompiled = compile(await readSource('herbalaifrontend/src/app/api/auth/google/complete/route.ts'));
 const frontendOrigin = 'https://www.herbalai.site';
 const backendApi = 'https://backend.example/api';
 
@@ -26,7 +26,7 @@ const fixture = ({ origin = frontendOrigin, token = 'TEST-only-refresh-token', d
     });
   };
   new Function('require', 'exports', 'fetch', 'process', routeCompiled)(
-    name => name === '../../../../../lib/auth-redirect' ? callbackExports : requireFrontend(name),
+    name => name === '@/lib/auth-redirect' ? callbackExports : requireFrontend(name),
     exports, fetch, { env: { NODE_ENV: 'production', NEXT_PUBLIC_API_URL: backendApi } },
   );
   const form = new FormData();
@@ -85,7 +85,7 @@ for (const destination of ['https://attacker.invalid', '//attacker.invalid', '/s
 }
 
 test('Google sign-in starts on the website origin rather than the backend hostname', async () => {
-  const source = await readSource('herbalaifrontend/app/signin/page.tsx');
+  const source = await readSource('herbalaifrontend/src/features/auth/SignInScreen.tsx');
   const tree = ts.createSourceFile('signin.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   let authUrl;
   const visit = node => {

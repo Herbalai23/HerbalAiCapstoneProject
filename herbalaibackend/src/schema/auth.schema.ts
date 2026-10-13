@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { banInputSchema } from '../lib/user-ban.js';
+import { banInputSchema } from '../domain/user-ban.js';
 
 export const banUserSchema = z.object({ body: banInputSchema });
 

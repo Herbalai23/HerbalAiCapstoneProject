@@ -3,16 +3,16 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import ts from '../herbalaifrontend/node_modules/typescript/lib/typescript.js';
 
-const source = await readFile(new URL('../herbalaifrontend/components/HerbComments.tsx', import.meta.url), 'utf8');
+const source = await readFile(new URL('../herbalaifrontend/src/features/library/HerbComments.tsx', import.meta.url), 'utf8');
 const syntax = ts.createSourceFile('HerbComments.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
-const helperSource = await readFile(new URL('../herbalaifrontend/lib/library-discussion.ts', import.meta.url), 'utf8');
-const coordinatorSource = await readFile(new URL('../herbalaifrontend/lib/refresh-coordinator.ts', import.meta.url), 'utf8');
+const helperSource = await readFile(new URL('../herbalaifrontend/src/features/library/library-discussion.ts', import.meta.url), 'utf8');
+const coordinatorSource = await readFile(new URL('../herbalaifrontend/src/lib/refresh-coordinator.ts', import.meta.url), 'utf8');
 const coordinatorOutput = ts.transpileModule(coordinatorSource, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText;
 const coordinator = await import(`data:text/javascript;base64,${Buffer.from(coordinatorOutput).toString('base64')}`);
 const helperOutput = ts.transpileModule(helperSource, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText;
 const helperExports = {};
 new Function('require', 'exports', helperOutput)((name) => {
-  assert.equal(name, './refresh-coordinator');
+  assert.equal(name, '@/lib/refresh-coordinator');
   return coordinator;
 }, helperExports);
 const { reconcileDeletedComments, createDiscussionRefresh } = helperExports;

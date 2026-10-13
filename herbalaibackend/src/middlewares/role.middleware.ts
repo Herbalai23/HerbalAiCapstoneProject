@@ -2,7 +2,7 @@ import type { NextFunction, Request, Response } from "express";
 import { Role } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import type { JwtPayload } from "../utils/jwt.js";
-import { isAccountBanned } from '../lib/user-ban.js';
+import { isAccountBanned } from '../domain/user-ban.js';
 
 type AuthenticatedRequest = Request & { user?: JwtPayload };
 

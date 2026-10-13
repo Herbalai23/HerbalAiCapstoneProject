@@ -1,6 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
 import * as authService from "../services/auth.service.js";
-import { passwordCapability } from '../lib/password-capability.js';
+import { passwordCapability } from '../domain/password-capability.js';
 import * as userRepo from "../repositories/user.repository.js";
 import { findAdminUserPage } from '../repositories/admin-user.repository.js';
 import { adminUserQuerySchema } from '../lib/admin-user-query.js';

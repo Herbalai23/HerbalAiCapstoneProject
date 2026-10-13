@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import ts from '../herbalaifrontend/node_modules/typescript/lib/typescript.js';
 
-const source = await readFile(new URL('../herbalaifrontend/lib/request-cache.ts', import.meta.url), 'utf8');
+const source = await readFile(new URL('../herbalaifrontend/src/lib/request-cache.ts', import.meta.url), 'utf8');
 const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
 const deferred = () => {
   let resolve;

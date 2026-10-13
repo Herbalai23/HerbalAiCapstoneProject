@@ -6,13 +6,13 @@ import { createRequire } from 'node:module';
 import { spawnSync } from 'node:child_process';
 
 const require = createRequire(new URL('../herbalaifrontend/package.json', import.meta.url));
-const source = await readFile(new URL('../herbalaifrontend/lib/credits.ts', import.meta.url), 'utf8');
+const source = await readFile(new URL('../herbalaifrontend/src/features/credits/credits.ts', import.meta.url), 'utf8');
 const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
 const exports = {};
 new Function('require', 'exports', compiled)(require, exports);
 
 test('wallet validation works when dynamic code generation is forbidden', () => {
-  const moduleUrl = new URL('../herbalaifrontend/lib/credits.ts', import.meta.url).href;
+  const moduleUrl = new URL('../herbalaifrontend/src/features/credits/credits.ts', import.meta.url).href;
   const result = spawnSync(process.execPath, ['--disallow-code-generation-from-strings', '--experimental-strip-types', '--input-type=module', '--eval',
     `import { creditWalletSchema } from ${JSON.stringify(moduleUrl)};
     const wallet = creditWalletSchema.parse({ enabled: true, testMode: true, balance: 10 });
@@ -21,12 +21,12 @@ test('wallet validation works when dynamic code generation is forbidden', () => 
   assert.equal(result.status, 0, result.stderr);
 });
 
-const pageSource = await readFile(new URL('../herbalaifrontend/components/CreditsWallet.tsx', import.meta.url), 'utf8');
-const chatSource = await readFile(new URL('../herbalaifrontend/app/chat/page.tsx', import.meta.url), 'utf8');
-const dialogSource = await readFile(new URL('../herbalaifrontend/components/AccessibleDialog.tsx', import.meta.url), 'utf8');
-const styleSource = await readFile(new URL('../herbalaifrontend/app/globals.css', import.meta.url), 'utf8');
-const statusSource = await readFile(new URL('../herbalaifrontend/components/DrAiCreditsStatus.tsx', import.meta.url), 'utf8');
-const standaloneSource = await readFile(new URL('../herbalaifrontend/app/credits/page.tsx', import.meta.url), 'utf8');
+const pageSource = await readFile(new URL('../herbalaifrontend/src/features/credits/CreditsWallet.tsx', import.meta.url), 'utf8');
+const chatSource = await readFile(new URL('../herbalaifrontend/src/features/chat/ChatScreen.tsx', import.meta.url), 'utf8');
+const dialogSource = await readFile(new URL('../herbalaifrontend/src/components/shared/AccessibleDialog.tsx', import.meta.url), 'utf8');
+const styleSource = await readFile(new URL('../herbalaifrontend/src/app/globals.css', import.meta.url), 'utf8');
+const statusSource = await readFile(new URL('../herbalaifrontend/src/features/chat/DrAiCreditsStatus.tsx', import.meta.url), 'utf8');
+const standaloneSource = await readFile(new URL('../herbalaifrontend/src/features/credits/CreditsScreen.tsx', import.meta.url), 'utf8');
 const syntax = ts.createSourceFile('credits.tsx', pageSource, ts.ScriptTarget.ES2022, true, ts.ScriptKind.TSX);
 const callbacks = new Map();
 const visit = node => {
@@ -240,12 +240,12 @@ const renderWallet = ({ ownerId = 'TEST-owner', userId = 'TEST-owner', enabled =
   const source = ts.transpileModule(pageSource, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
   const injectedRequire = name => {
     if (name === 'react') return { ...react, useState: () => [states[stateIndex++], () => {}], useRef: value => ({ current: value }), useEffect: () => {} };
-    if (name === '../context/AuthContext') return { useAuth: () => ({ user: userId ? { id: userId } : null, loading: false, sessionUnavailable }) };
-    if (name === '../lib/credits') return exports;
-    if (name === '../lib/axios') return {};
-    if (name === './AccessibleDialog') return { __esModule: true, default: ({ children, label, variant }) => react.createElement('div', { role: 'dialog', 'aria-label': label, 'data-layout': variant }, children) };
-    if (name === './ui/button') return { Button: ({ children, disabled, onClick }) => react.createElement('button', { disabled, onClick }, children) };
-    if (name === './SessionUnavailable') return { __esModule: true, default: () => null };
+    if (name === '@/lib/context/AuthContext') return { useAuth: () => ({ user: userId ? { id: userId } : null, loading: false, sessionUnavailable }) };
+    if (name === '@/features/credits/credits') return exports;
+    if (name === '@/lib/axios') return {};
+    if (name === '@/components/shared/AccessibleDialog') return { __esModule: true, default: ({ children, label, variant }) => react.createElement('div', { role: 'dialog', 'aria-label': label, 'data-layout': variant }, children) };
+    if (name === '@/components/ui/button') return { Button: ({ children, disabled, onClick }) => react.createElement('button', { disabled, onClick }, children) };
+    if (name === '@/components/shared/SessionUnavailable') return { __esModule: true, default: () => null };
     return require(name);
   };
   new Function('require', 'exports', source)(injectedRequire, module.exports);

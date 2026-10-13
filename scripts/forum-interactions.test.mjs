@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import ts from '../herbalaifrontend/node_modules/typescript/lib/typescript.js';
 
-const helperSource = await readFile(new URL('../herbalaifrontend/lib/forum-comments.ts', import.meta.url), 'utf8');
-const source = await readFile(new URL('../herbalaifrontend/app/community/[id]/page.tsx', import.meta.url), 'utf8');
+const helperSource = await readFile(new URL('../herbalaifrontend/src/features/community/forum-comments.ts', import.meta.url), 'utf8');
+const source = await readFile(new URL('../herbalaifrontend/src/features/community/ThreadDetailScreen.tsx', import.meta.url), 'utf8');
 const compile = text => ts.transpileModule(text, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText;
 const helpers = {};
 new Function('exports', compile(helperSource))(helpers);

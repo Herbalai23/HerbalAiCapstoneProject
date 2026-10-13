@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import ts from '../herbalaifrontend/node_modules/typescript/lib/typescript.js';
 
-const source = await readFile(new URL('../herbalaifrontend/lib/pwa-install.ts', import.meta.url), 'utf8');
+const source = await readFile(new URL('../herbalaifrontend/src/lib/pwa-install.ts', import.meta.url), 'utf8');
 const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText;
 const { createInstallNotice, INSTALL_NOTICE_DELAY, INSTALL_NOTICE_COOLDOWN, INSTALL_NOTICE_STORAGE_KEY } = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString('base64')}`);
 const deferred = () => {
@@ -186,9 +186,9 @@ test('disposal cleans listeners and timer, and ignores async completion', async 
   assert.equal(view.timers.size, 0);
 });
 test('one global compact non-modal notice replaces the mobile navigation button', async () => {
-  const component = await readFile(new URL('../herbalaifrontend/components/PwaInstall.tsx', import.meta.url), 'utf8');
-  const layout = await readFile(new URL('../herbalaifrontend/app/layout.tsx', import.meta.url), 'utf8');
-  const navbar = await readFile(new URL('../herbalaifrontend/components/Navbar.tsx', import.meta.url), 'utf8');
+  const component = await readFile(new URL('../herbalaifrontend/src/components/core/PwaInstall.tsx', import.meta.url), 'utf8');
+  const layout = await readFile(new URL('../herbalaifrontend/src/app/layout.tsx', import.meta.url), 'utf8');
+  const navbar = await readFile(new URL('../herbalaifrontend/src/components/core/Navbar.tsx', import.meta.url), 'utf8');
   assert.equal((layout.match(/<PwaInstallNotice\s*\/>/g) ?? []).length, 1);
   assert.doesNotMatch(navbar, /PwaInstallButton|Install Herbal-Ai/);
   assert.match(component, /<aside/);

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import ts from '../herbalaifrontend/node_modules/typescript/lib/typescript.js';
 
-const source = await readFile(new URL('../herbalaifrontend/app/library/page.tsx', import.meta.url), 'utf8');
+const source = await readFile(new URL('../herbalaifrontend/src/features/library/LibraryScreen.tsx', import.meta.url), 'utf8');
 const syntax = ts.createSourceFile('library.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
 let card;
 const inspect = node => {
@@ -66,7 +66,7 @@ test('pointer activation still opens the same selected herb', () => {
   assert.deepEqual(selected, [herb]);
 });
 
-const dialogSource = await readFile(new URL('../herbalaifrontend/components/AccessibleDialog.tsx', import.meta.url), 'utf8');
+const dialogSource = await readFile(new URL('../herbalaifrontend/src/components/shared/AccessibleDialog.tsx', import.meta.url), 'utf8');
 const dialogSyntax = ts.createSourceFile('dialog.tsx', dialogSource, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
 let dialogKeyboard;
 const findDialogKeyboard = node => {

@@ -7,7 +7,7 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import ts from 'typescript';
 
-const footerPath = fileURLToPath(new URL('../components/Footer.tsx', import.meta.url));
+const footerPath = fileURLToPath(new URL('../src/components/core/Footer.tsx', import.meta.url));
 const require = createRequire(footerPath);
 
 function loadComponent(filename) {
@@ -16,11 +16,11 @@ function loadComponent(filename) {
   });
   const compiledModule = { exports: {} };
   const localRequire = name => {
-    if (name === './BrandMark') {
-      return loadComponent(fileURLToPath(new URL('../components/BrandMark.tsx', import.meta.url)));
+    if (name === '@/components/core/BrandMark') {
+      return loadComponent(fileURLToPath(new URL('../src/components/core/BrandMark.tsx', import.meta.url)));
     }
     if (name === '../lib/external-links' || name.endsWith('external-links')) {
-      return loadComponent(fileURLToPath(new URL('../lib/external-links.ts', import.meta.url)));
+      return loadComponent(fileURLToPath(new URL('../src/lib/external-links.ts', import.meta.url)));
     }
     return require(name);
   };

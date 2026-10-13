@@ -8,15 +8,15 @@ import ts from '../herbalaifrontend/node_modules/typescript/lib/typescript.js';
 
 const requireFrontend = createRequire(new URL('../herbalaifrontend/package.json', import.meta.url));
 const suggestionReview = {};
-new Function('exports', ts.transpileModule(await readFile(new URL('../herbalaifrontend/lib/suggestion-review.ts', import.meta.url), 'utf8'), {
+new Function('exports', ts.transpileModule(await readFile(new URL('../herbalaifrontend/src/features/suggestions/suggestion-review.ts', import.meta.url), 'utf8'), {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
 }).outputText)(suggestionReview);
 const axios = requireFrontend('axios');
-const source = await readFile(new URL('../herbalaifrontend/lib/axios.ts', import.meta.url), 'utf8');
+const source = await readFile(new URL('../herbalaifrontend/src/lib/axios.ts', import.meta.url), 'utf8');
 const compiled = ts.transpileModule(source, {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true },
 }).outputText;
-const contextSource = await readFile(new URL('../herbalaifrontend/context/AuthContext.tsx', import.meta.url), 'utf8');
+const contextSource = await readFile(new URL('../herbalaifrontend/src/lib/context/AuthContext.tsx', import.meta.url), 'utf8');
 const contextSyntax = ts.createSourceFile('AuthContext.tsx', contextSource, ts.ScriptTarget.ES2022, true, ts.ScriptKind.TSX);
 let checkSessionSource;
 const findSession = node => {
@@ -738,7 +738,7 @@ for (const existingUser of [null, { id: 'TEST ONLY existing user' }]) {
 }
 
 test('the existing sequential knowledge import explicitly keeps a longer finite budget', async () => {
-  const adminSource = await readFile(new URL('../herbalaifrontend/app/admin/page.tsx', import.meta.url), 'utf8');
+  const adminSource = await readFile(new URL('../herbalaifrontend/src/features/admin/actions/knowledge-base-actions.ts', import.meta.url), 'utf8');
   const syntax = ts.createSourceFile('admin.tsx', adminSource, ts.ScriptTarget.ES2022, true, ts.ScriptKind.TSX);
   let options;
   const findImport = node => {
@@ -755,7 +755,11 @@ test('the existing sequential knowledge import explicitly keeps a longer finite 
 
 for (const page of ['suggest/page.tsx', 'community/new/page.tsx']) {
   test(`${page} distinguishes a session outage from confirmed unauthenticated access and wires retry`, async () => {
-    const pageSource = await readFile(new URL(`../herbalaifrontend/app/${page}`, import.meta.url), 'utf8');
+    const feature = page === 'suggest/page.tsx' ? 'suggestions/SuggestHerbScreen' : 'community/NewThreadScreen';
+    const screenSource = await readFile(new URL(`../herbalaifrontend/src/features/${feature}.tsx`, import.meta.url), 'utf8');
+    const pageSource = page === 'suggest/page.tsx'
+      ? screenSource + '\n' + await readFile(new URL('../herbalaifrontend/src/features/suggestions/useSuggestionSubmission.ts', import.meta.url), 'utf8')
+      : screenSource;
     const syntax = ts.createSourceFile(page, pageSource, ts.ScriptTarget.ES2022, true, ts.ScriptKind.TSX);
     let guard;
     let recovery;

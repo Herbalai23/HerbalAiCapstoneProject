@@ -1,0 +1,348 @@
+'use client';
+
+import { useState, useRef, useEffect } from 'react';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { useAuth } from '@/lib/context/AuthContext';
+import NotificationBell from '@/features/notifications/NotificationBell';
+import ProfileEditorModal from '@/features/account/ProfileEditorModal';
+import ThemeToggle from '@/components/core/DisplayPreferences';
+import BrandMark from '@/components/core/BrandMark';
+import { ChevronDown, LogOut, Menu, Pencil, Shield, Sprout, UserRound, X } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+
+export default function Navbar() {
+  const { user, logout, isAuthenticated, loading, sessionUnavailable, checkSession } = useAuth();
+  const pathname = usePathname();
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isProfileEditorOpen, setIsProfileEditorOpen] = useState(false);
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const [logoutError, setLogoutError] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
+        setIsUserMenuOpen(false);
+      }
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsUserMenuOpen(false);
+      }
+    };
+    if (isUserMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('keydown', handleKeyDown);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isUserMenuOpen]);
+
+  const toggleMobileMenu = () => {
+    setIsMobileMenuOpen((prev) => !prev);
+  };
+
+  const handleLogout = async () => {
+    setLogoutError(false);
+    try {
+      await logout();
+    } catch (error) {
+      console.error('Failed to log out:', error);
+      setLogoutError(true);
+    }
+  };
+
+  const isAdmin = user?.role === 'admin';
+
+  const navLinks = [
+    { name: 'Home', href: '/' },
+    { name: 'Library', href: '/library' },
+    { name: 'Dr. Ai', href: '/chat' },
+    { name: 'About', href: '/about' },
+  ];
+
+  const authLinks = isAuthenticated
+    ? [
+        { name: 'Community', href: '/community' },
+        { name: 'Messenger', href: '/messenger' },
+      ]
+    : [];
+
+  const allLinks = [...navLinks, ...authLinks];
+
+  return (
+    <>
+      <nav aria-label="Main navigation" className="site-nav sticky top-0 z-50 w-full glass-header px-3 py-2 shadow-sm sm:px-6">
+        <div className="mx-auto flex max-w-7xl items-center justify-between">
+          {/* Logo */}
+          <Link href="/" aria-label="Herbal Ai home" className="flex items-center gap-2 group shrink-0">
+            <BrandMark className="h-9 w-9 shrink-0 text-[#1b4332] dark:text-[#e6f1e7] transition-transform group-hover:scale-105" />
+            <span className="font-sans text-xl font-extrabold tracking-tight text-[#1b4332] dark:text-ink whitespace-nowrap shrink-0 max-[279px]:hidden">
+              Herbal-<span className="text-[#2d6a4f] dark:text-accent">Ai</span>
+            </span>
+          </Link>
+
+          {/* Desktop Navigation Links */}
+          <div className="hidden lg:flex items-center gap-1 shrink-0">
+            {allLinks.map((link) => {
+              const isActive = pathname === link.href;
+              return (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className={`rounded-full px-3 py-1.5 text-xs font-extrabold transition-all border-2 border-transparent whitespace-nowrap shrink-0 ${
+                    isActive
+                      ? 'bg-[#eef5f0] dark:bg-soft text-[#1b4332] dark:text-ink border-[#2d6a4f] dark:border-line-strong'
+                      : 'text-[#2d6a4f] dark:text-muted hover:bg-[#eef5f0] dark:hover:bg-soft hover:text-[#1b4332] dark:hover:text-ink'
+                  }`}
+                >
+                  {link.name}
+                </Link>
+              );
+            })}
+          </div>
+
+          {/* Desktop Authentication / Action buttons */}
+          <div className="hidden lg:flex items-center gap-3 shrink-0">
+            {loading ? (
+              <span role="status" className="text-sm text-muted">Checking session…</span>
+            ) : sessionUnavailable && !isAuthenticated ? (
+              <Button type="button" variant="outline" size="sm" onClick={() => { void checkSession(true); }}>Retry session</Button>
+            ) : isAuthenticated ? (
+              <>
+                <Button asChild size="sm"><Link href="/suggest"><Sprout size={15} aria-hidden="true" />Suggest Herb</Link></Button>
+
+                <NotificationBell />
+
+                <ThemeToggle />
+
+                {/* Account / User Menu Dropdown */}
+                <div className="relative" ref={userMenuRef}>
+                  <button
+                    type="button"
+                    onClick={() => setIsUserMenuOpen((prev) => !prev)}
+                    aria-label="User account menu"
+                    aria-expanded={isUserMenuOpen}
+                    className="flex items-center gap-2 rounded-full pl-1.5 pr-3 py-1.5 text-xs font-extrabold border border-border bg-popover text-popover-foreground shadow-xs hover:bg-secondary transition-colors cursor-pointer shrink-0 whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    {user?.avatar?.startsWith('http') ? (
+                      <img src={user.avatar} alt="Avatar" className="h-6 w-6 rounded-full object-cover shadow-xs" />
+                    ) : (
+                      <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#2d6a4f] text-[10px] font-bold text-white uppercase">
+                        {user?.name ? user.name.charAt(0) : 'U'}
+                      </span>
+                    )}
+                    <span className="text-[#1b4332] dark:text-ink max-w-[120px] truncate">
+                      {user?.name}
+                    </span>
+                    <ChevronDown className={`size-4 text-muted transition-transform duration-150 ${isUserMenuOpen ? 'rotate-180' : ''}`} aria-hidden="true" />
+                  </button>
+
+                  {isUserMenuOpen && (
+                    <div className="absolute right-0 top-full z-50 mt-2 w-64 space-y-2 rounded-xl border border-border bg-popover p-2 text-popover-foreground shadow-lg">
+                      {/* User Info Header */}
+                      <div className="px-3 py-2 border-b border-black/5 dark:border-line flex items-center gap-3">
+                        {user?.avatar?.startsWith('http') ? (
+                          <img src={user.avatar} alt="Avatar" className="h-9 w-9 rounded-full object-cover shadow-sm" />
+                        ) : (
+                          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#2d6a4f] text-xs font-bold text-white uppercase shadow-sm">
+                            {user?.name ? user.name.charAt(0) : 'U'}
+                          </span>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <p className="font-bold text-sm text-[#1b4332] dark:text-ink truncate">{user?.name}</p>
+                          <p className="text-xs text-[#2d6a4f] dark:text-muted truncate capitalize">{user?.role || 'Member'}</p>
+                        </div>
+                      </div>
+
+                      {/* Dropdown Options */}
+                      <div className="space-y-1">
+                        {isAdmin && (
+                          <Link
+                            href="/admin"
+                            onClick={() => setIsUserMenuOpen(false)}
+                            className="flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-sm font-medium text-foreground transition-colors hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          >
+                            <Shield className="size-4 shrink-0 text-muted" aria-hidden="true" />
+                            <span>Admin Panel</span>
+                          </Link>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsUserMenuOpen(false);
+                            setIsProfileEditorOpen(true);
+                          }}
+                          className="flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-left text-sm font-medium text-foreground transition-colors hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer"
+                        >
+                          <Pencil className="size-4 shrink-0 text-muted" aria-hidden="true" />
+                          <span>Account settings</span>
+                        </button>
+
+                        <div className="px-3 py-2 border-t border-black/5 dark:border-line">
+                          <ThemeToggle variant="row" />
+                        </div>
+                      </div>
+
+                      {/* Logout */}
+                      <div className="border-t border-black/5 dark:border-line pt-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsUserMenuOpen(false);
+                            handleLogout();
+                          }}
+                          className="flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-left text-sm font-medium text-destructive transition-colors hover:bg-error-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer"
+                        >
+                          <LogOut className="size-4 shrink-0" aria-hidden="true" />
+                          <span>Log Out</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </>
+            ) : (
+              <>
+                <ThemeToggle />
+                <Button asChild variant="ghost" size="sm"><Link href="/signin">Sign In</Link></Button>
+                <Button asChild size="sm"><Link href="/signup">Get Started</Link></Button>
+              </>
+            )}
+          </div>
+
+          {/* Mobile top bar buttons */}
+          <div className="flex items-center gap-2 lg:hidden">
+            <ThemeToggle />
+            {isAuthenticated && <NotificationBell />}
+            <button
+              onClick={toggleMobileMenu}
+              className="flex h-11 w-11 items-center justify-center rounded-full border border-black/10 dark:border-line bg-white/80 dark:bg-panel text-[#1b4332] dark:text-ink cursor-pointer"
+              aria-label="Toggle navigation menu"
+              aria-expanded={isMobileMenuOpen}
+            >
+              {isMobileMenuOpen ? <X size={21} aria-hidden="true" /> : <Menu size={21} aria-hidden="true" />}
+            </button>
+          </div>
+        </div>
+
+        {/* Mobile Navigation Floating Overlay (prevents layout shift / pushing content) */}
+        {isMobileMenuOpen && (
+          <>
+            <div
+              className="fixed inset-0 top-[56px] z-40 bg-black/50 backdrop-blur-sm lg:hidden animate-in fade-in duration-200"
+              onClick={() => setIsMobileMenuOpen(false)}
+              aria-hidden="true"
+            />
+            <div className="absolute top-full left-0 right-0 z-50 lg:hidden max-h-[calc(100dvh-4.5rem)] overflow-y-auto border-b border-line bg-panel/95 backdrop-blur-xl px-4 py-4 shadow-2xl animate-in fade-in slide-in-from-top-2 duration-200">
+            <div className="mb-3 rounded-xl border border-line bg-panel px-4 py-2.5">
+              <ThemeToggle variant="row" />
+            </div>
+
+            <div className="grid grid-cols-2 gap-2" role="navigation" aria-label="Mobile site navigation">
+              {allLinks.map((link) => {
+                const isActive = pathname === link.href;
+                return (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className={`rounded-xl px-4 py-2.5 text-left text-sm font-extrabold transition-all flex items-center ${
+                      isActive
+                        ? 'bg-[#eef5f0] text-[#1b4332] ring-1 ring-[#2d6a4f]/20 dark:bg-soft dark:text-ink'
+                        : 'text-[#2d6a4f] hover:bg-[#eef5f0] dark:text-muted dark:hover:bg-soft'
+                    }`}
+                  >
+                    <span>{link.name}</span>
+                  </Link>
+                );
+              })}
+            </div>
+
+            <div className="mt-3 space-y-2 border-t border-black/10 pt-3 dark:border-line">
+              {loading ? (
+                <span role="status" className="block text-center text-sm text-muted">Checking session…</span>
+              ) : sessionUnavailable && !isAuthenticated ? (
+                <Button type="button" variant="outline" className="w-full" onClick={() => { void checkSession(true); }}>Retry session</Button>
+              ) : isAuthenticated ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsMobileMenuOpen(false);
+                      setIsProfileEditorOpen(true);
+                    }}
+                    aria-label="Account settings"
+                    className="flex w-full items-center gap-3 rounded-xl bg-white/60 px-4 py-2.5 text-left text-sm font-extrabold text-[#1b4332] dark:bg-soft dark:text-ink cursor-pointer"
+                  >
+                    <UserRound size={18} aria-hidden="true" className="shrink-0 text-[#40916c]" />
+                    <span className="min-w-0">
+                      <span className="block truncate">{user?.name || 'Profile'}</span>
+                      <span className="block text-xs font-semibold capitalize text-[#2d6a4f]/75 dark:text-muted">{user?.role || 'Member'}</span>
+                    </span>
+                  </button>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    {isAdmin && (
+                      <Link
+                        href="/admin"
+                        onClick={() => setIsMobileMenuOpen(false)}
+                        className="flex items-center justify-center gap-2 rounded-xl border border-[#40916c]/25 px-3 py-2.5 text-sm font-extrabold text-[#2d6a4f] dark:text-[#74c69d]"
+                      >
+                        <Shield size={16} aria-hidden="true" />
+                        Admin
+                      </Link>
+                    )}
+
+                    <Link
+                      href="/suggest"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                      className="flex items-center justify-center gap-2 rounded-xl border border-[#40916c]/25 px-3 py-2.5 text-sm font-extrabold text-[#2d6a4f] dark:text-[#74c69d]"
+                    >
+                      <Sprout size={16} aria-hidden="true" />
+                      Suggest Herb
+                    </Link>
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      setIsMobileMenuOpen(false);
+                      handleLogout();
+                    }}
+                    className="flex w-full items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-sm font-extrabold text-[#b34f35] transition-colors hover:bg-[#b34f35]/10 dark:text-[#e58a70] cursor-pointer"
+                  >
+                    <LogOut size={16} aria-hidden="true" />
+                    Log Out
+                  </button>
+                </>
+              ) : (
+                <div className="grid grid-cols-2 gap-2 pt-1">
+                  <Button asChild variant="outline" className="w-full"><Link href="/signin" onClick={() => setIsMobileMenuOpen(false)}>Sign In</Link></Button>
+                  <Button asChild className="w-full"><Link href="/signup" onClick={() => setIsMobileMenuOpen(false)}>Get Started</Link></Button>
+                </div>
+              )}
+            </div>
+          </div>
+          </>
+        )}
+      </nav>
+
+      {logoutError && (
+        <div role="alert" className="border-b border-error-ink/20 bg-error-surface px-4 py-3 text-center text-sm text-error-ink">
+          Could not sign out. Please try again.
+        </div>
+      )}
+
+      {/* Profile Editor Modal */}
+      <ProfileEditorModal
+        key={isProfileEditorOpen ? user?.id : 'closed'}
+        isOpen={isProfileEditorOpen}
+        onClose={() => setIsProfileEditorOpen(false)}
+      />
+    </>
+  );
+}

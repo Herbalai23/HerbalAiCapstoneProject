@@ -2,7 +2,7 @@ name: Herb Preparation PostgreSQL Gate
 
 on:
   push:
-    branches: ["codex/mvp-acceptance-ci"]
+    branches: ["codex/mvp-acceptance-ci", "codex/architecture-refactor-preview-20261013"]
     paths:
       - "herbalaibackend/**"
       - ".github/workflows/herb-preparation-ci.yml"

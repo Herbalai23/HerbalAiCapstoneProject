@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import ts from '../herbalaifrontend/node_modules/typescript/lib/typescript.js';
 
-const pagePath = new URL('../herbalaifrontend/app/about/page.tsx', import.meta.url);
+const pagePath = new URL('../herbalaifrontend/src/features/about/AboutScreen.tsx', import.meta.url);
 
 test('About uses the shared reviewed repository rather than an independent medical dataset', async () => {
   const source = await readFile(pagePath, 'utf8');
@@ -25,7 +25,7 @@ const compile = async path => {
   return result.outputText;
 };
 const recordsModule = {};
-new Function('exports', await compile('../herbalaifrontend/lib/about-herb-records.ts'))(recordsModule);
+new Function('exports', await compile('../herbalaifrontend/src/features/about/about-herb-records.ts'))(recordsModule);
 const { aboutHerbRecords } = recordsModule;
 const record = (overrides = {}) => ({
   id: 'TEST-herb', localName: 'Lagundi', scientificName: 'TEST reviewed identity', cebuanoName: 'TEST regional name',
@@ -77,7 +77,7 @@ test('malformed references are filtered and absent safety does not imply safe us
   assert.equal(herb.sources.length, 1);
 });
 
-const pageCompiled = await compile('../herbalaifrontend/app/about/page.tsx');
+const pageCompiled = await compile('../herbalaifrontend/src/features/about/AboutScreen.tsx');
 const fixture = getRecords => {
   const state = [[], null, true, null, 0];
   const effects = [];
@@ -95,11 +95,11 @@ const fixture = getRecords => {
   const dependency = name => {
     if (name === 'react') return react;
     if (name === 'lucide-react') return new Proxy({}, { get: () => () => null });
-    if (name === '../../context/AuthContext') return { useAuth: () => ({ isAuthenticated: false }) };
-    if (name === '../../lib/about-herb-records') return recordsModule;
-    if (name === '../../lib/request-cache') return { cachedApiGet: (...args) => { requests.push(args); return getRecords(); } };
+    if (name === '@/lib/context/AuthContext') return { useAuth: () => ({ isAuthenticated: false }) };
+    if (name === '@/features/about/about-herb-records') return recordsModule;
+    if (name === '@/lib/request-cache') return { cachedApiGet: (...args) => { requests.push(args); return getRecords(); } };
     if (name === 'next/link') return { __esModule: true, default: props => React.createElement('a', props) };
-    if (name.startsWith('../../components/')) return { __esModule: true, default: () => null };
+    if (name.startsWith('@/components/') || name.startsWith('@/features/')) return { __esModule: true, default: () => null };
     return requireFrontend(name);
   };
   new Function('require', 'exports', pageCompiled)(dependency, exports);

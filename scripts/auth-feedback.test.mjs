@@ -17,14 +17,15 @@ const compile = source => ts.transpileModule(source, {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true },
 }).outputText;
 const sources = {};
+const authScreens = { signin: 'SignInScreen', signup: 'SignUpScreen', 'verify-email': 'VerifyEmailScreen' };
 for (const surface of ['signin', 'signup', 'verify-email']) {
-  sources[surface] = compile(await readSource(`herbalaifrontend/app/${surface}/page.tsx`));
+  sources[surface] = compile(await readSource(`herbalaifrontend/src/features/auth/${authScreens[surface]}.tsx`));
 }
 const feedback = {};
-new Function('exports', compile(await readSource('herbalaifrontend/lib/request-feedback.ts')))(feedback);
+new Function('exports', compile(await readSource('herbalaifrontend/src/lib/request-feedback.ts')))(feedback);
 const registrationNames = {};
-new Function('exports', compile(await readSource('herbalaifrontend/lib/registration-name.ts')))(registrationNames);
-const contextText = await readSource('herbalaifrontend/context/AuthContext.tsx');
+new Function('exports', compile(await readSource('herbalaifrontend/src/validation/registration-name.ts')))(registrationNames);
+const contextText = await readSource('herbalaifrontend/src/lib/context/AuthContext.tsx');
 const contextTree = ts.createSourceFile('AuthContext.tsx', contextText, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
 let signupDeclaration;
 const visitContext = node => {
@@ -78,13 +79,13 @@ const fixture = (surface, operation, token = 'TEST-only-verification-token') => 
     if (name === 'lucide-react') return new Proxy({}, { get: () => props => React.createElement('svg', props) });
     if (name === 'next/link') return { __esModule: true, default: ({ href, children }) => React.createElement('a', { href }, children) };
     if (name === 'next/navigation') return { useRouter: () => ({ push: route => routes.push(route) }), useSearchParams: () => new URLSearchParams(token ? { token } : {}) };
-    if (name === '../../components/AuthBrandPanel') return { __esModule: true, default: () => null };
-    if (name === '../../components/DisplayPreferences') return { ThemeToggle: () => null };
-    if (name === '../../context/AuthContext') return { useAuth: () => ({ login: request, signup }) };
-    if (name === '../../lib/axios') return { __esModule: true, default: api };
-    if (name === '../../lib/request-feedback') return feedback;
-    if (name === '../../lib/registration-name') return registrationNames;
-    if (name === '../../lib/auth-redirect') return { safeAuthCallback: () => null };
+    if (name === '@/features/auth/AuthBrandPanel') return { __esModule: true, default: () => null };
+    if (name === '@/components/core/DisplayPreferences') return { ThemeToggle: () => null };
+    if (name === '@/lib/context/AuthContext') return { useAuth: () => ({ login: request, signup }) };
+    if (name === '@/lib/axios') return { __esModule: true, default: api };
+    if (name === '@/lib/request-feedback') return feedback;
+    if (name === '@/validation/registration-name') return registrationNames;
+    if (name === '@/lib/auth-redirect') return { safeAuthCallback: () => null };
     return requireFrontend(name);
   };
   const suffix = surface === 'verify' ? '\nexports.default = VerifyEmailContent;'

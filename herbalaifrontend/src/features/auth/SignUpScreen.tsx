@@ -1,0 +1,286 @@
+'use client';
+
+import { registrationNameError, registrationNameInput } from '@/validation/registration-name';
+
+import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { Eye, EyeOff } from 'lucide-react';
+import { useAuth } from '@/lib/context/AuthContext';
+import AuthBrandPanel from '@/features/auth/AuthBrandPanel';
+import { ThemeToggle } from '@/components/core/DisplayPreferences';
+import api from '@/lib/axios';
+import { requestError, responseMessage } from '@/lib/request-feedback';
+
+export default function SignUpPage() {
+  const { signup } = useAuth();
+  const router = useRouter();
+
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [signupUncertain, setSignupUncertain] = useState(false);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [canResend, setCanResend] = useState(false);
+  const [accountCreated, setAccountCreated] = useState(false);
+  const [resendMessage, setResendMessage] = useState<string | null>(null);
+
+  // Dynamic password strength evaluation
+  const getPasswordStrength = () => {
+    if (password.length === 0) return { label: 'Enter at least 8 characters', colorClass: 'bg-[#6a7282]/20', width: 'w-0' };
+    if (password.length < 8) return { label: 'Too Short (Weak)', colorClass: 'bg-rose-500', width: 'w-1/3' };
+    if (password.length < 12) return { label: 'Safe (Medium)', colorClass: 'bg-[#c9a040]', width: 'w-2/3' };
+    return { label: 'Strong', colorClass: 'bg-[#40916c]', width: 'w-full' };
+  };
+
+  const strength = getPasswordStrength();
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSignupUncertain(false);
+    setSuccess(null);
+    setResendMessage(null);
+
+    // Validate fields locally
+    const nameError = registrationNameError(firstName, 'First name') || registrationNameError(lastName, 'Last name');
+    if (nameError) {
+      setError(nameError);
+      return;
+    }
+
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters long.');
+      return;
+    }
+
+    if (!/^[a-zA-Z0-9_]+$/.test(username)) {
+      setError('Username can only contain letters, numbers, and underscores.');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const result = await signup({
+        firstName: firstName.trim().normalize('NFC'),
+        lastName: lastName.trim().normalize('NFC'),
+        username,
+        email,
+        password,
+      });
+
+      setSuccess(result.message);
+      setCanResend(result.verificationRequired && !result.verificationEmailSent);
+      setAccountCreated(true);
+      if (!result.verificationRequired || result.verificationEmailSent) {
+        setTimeout(() => router.push('/signin'), 5000);
+      }
+
+    } catch (err: unknown) {
+      const response = (err as { response?: { status?: number; data?: { verificationRequired?: unknown } } } | null)?.response;
+      const uncertainResponse = !response || response.status === 502 || response.status === 504;
+      setSignupUncertain(uncertainResponse);
+      setCanResend(response?.status === 409 && response?.data?.verificationRequired === true);
+      setError(uncertainResponse
+        ? 'We could not confirm your signup. Before trying again, sign in with the email and password you just entered.'
+        : response.status === 503
+          ? 'Account creation is temporarily unavailable. Please try again later.'
+          : requestError(err, 'Registration failed. Please check your inputs.'));
+      setLoading(false);
+    }
+  };
+
+  const handleResend = async () => {
+    setResending(true);
+    setResendMessage(null);
+    try {
+      const response = await api.post('/auth/resend-email-verification', { email: email.trim() });
+      setResendMessage(responseMessage(response, 'If this account is unverified, a new link has been sent.'));
+    } catch (err: unknown) {
+      setResendMessage(requestError(err, 'The verification email could not be sent right now. Please try again later.'));
+    } finally {
+      setResending(false);
+    }
+  };
+
+  return (
+    <main className="auth-shell grid min-h-svh grid-cols-1 bg-canvas font-sans lg:h-svh lg:grid-cols-[minmax(23rem,0.92fr)_minmax(32rem,1.08fr)] lg:overflow-hidden">
+      <AuthBrandPanel mode="signup" />
+
+      <div className="auth-form-pane auth-form-pane-signup relative flex min-w-0 items-center justify-center px-5 pb-8 pt-20 lg:h-svh lg:overflow-hidden lg:px-8 lg:pb-3 lg:pt-14">
+        <ThemeToggle className="auth-theme-toggle" />
+        <div className="auth-form-card auth-form-card-signup glass-card">
+          <p className="auth-form-eyebrow">Join the repository</p>
+          <h2 className="text-2xl lg:text-3xl font-extrabold text-[#1b4332] dark:text-ink mb-4">Create your account</h2>
+
+          {error && (
+            <div
+              role="alert"
+              className="mb-6 p-4 border border-rose-200 bg-rose-50 text-rose-800 font-bold rounded-xl text-sm"
+            >
+              ⚠️ {error}
+              {signupUncertain && <Link href="/signin" className="ml-1 underline underline-offset-2">Go to sign in</Link>}
+            </div>
+          )}
+
+          {success && (
+            <div
+              role="alert"
+              className="mb-6 p-4 border border-[#40916c] bg-[#eef5f0] text-[#2d6a4f] font-bold rounded-xl text-sm"
+            >
+              🎉 {success}
+            </div>
+          )}
+
+          {canResend && (
+            <div className="mb-5 space-y-2">
+              <button
+                type="button"
+                onClick={handleResend}
+                disabled={resending}
+                className="w-full rounded-full border border-[#2d6a4f] px-5 py-2.5 text-sm font-semibold text-[#2d6a4f] disabled:opacity-50 dark:border-[#74c69d] dark:text-[#74c69d]"
+              >
+                {resending ? 'Sending verification link...' : 'Send verification link again'}
+              </button>
+              {resendMessage && <p role="status" className="text-sm text-[#1b4332] dark:text-ink">{resendMessage}</p>}
+            </div>
+          )}
+
+          {!accountCreated && <form onSubmit={handleSubmit} className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-extrabold text-[#1b4332] dark:text-ink mb-1" htmlFor="firstName">
+                  First Name
+                </label>
+                <input
+                  id="firstName"
+                  type="text"
+                  required
+                  minLength={5}
+                  maxLength={50}
+                  pattern="(?:\p{L}\p{M}*)+"
+                  title="5–10 letters; no numbers or punctuation"
+                  autoComplete="given-name"
+                  placeholder="Maria"
+                  value={firstName}
+                  onChange={(event) => { const name = registrationNameInput(event.target.value); if (name !== null) setFirstName(name); }}
+                  className="w-full border border-black/10 dark:border-line bg-white/70 dark:bg-soft rounded-2xl px-4 py-2.5 text-sm text-[#1b4332] dark:text-ink focus:outline-none focus:ring-2 focus:ring-[#40916c]"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-extrabold text-[#1b4332] dark:text-ink mb-1" htmlFor="lastName">
+                  Last Name
+                </label>
+                <input
+                  id="lastName"
+                  type="text"
+                  required
+                  minLength={5}
+                  maxLength={50}
+                  pattern="(?:\p{L}\p{M}*)+"
+                  title="5–10 letters; no numbers or punctuation"
+                  autoComplete="family-name"
+                  placeholder="Santos"
+                  value={lastName}
+                  onChange={(event) => { const name = registrationNameInput(event.target.value); if (name !== null) setLastName(name); }}
+                  className="w-full border border-black/10 dark:border-line bg-white/70 dark:bg-soft rounded-2xl px-4 py-2.5 text-sm text-[#1b4332] dark:text-ink focus:outline-none focus:ring-2 focus:ring-[#40916c]"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-extrabold text-[#1b4332] dark:text-ink mb-1" htmlFor="username">
+                Username
+              </label>
+              <input
+                id="username"
+                type="text"
+                required
+                placeholder="maria_santos"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                className="w-full border border-black/10 dark:border-line bg-white/70 dark:bg-soft rounded-2xl px-4 py-2.5 text-sm text-[#1b4332] dark:text-ink focus:outline-none focus:ring-2 focus:ring-[#40916c]"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-extrabold text-[#1b4332] dark:text-ink mb-1" htmlFor="email">
+                Email Address
+              </label>
+              <input
+                id="email"
+                type="email"
+                required
+                placeholder="you@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full border border-black/10 dark:border-line bg-white/70 dark:bg-soft rounded-2xl px-4 py-2.5 text-sm text-[#1b4332] dark:text-ink focus:outline-none focus:ring-2 focus:ring-[#40916c]"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-extrabold text-[#1b4332] dark:text-ink mb-1" htmlFor="password">
+                Password
+              </label>
+              <div className="relative">
+                <input
+                  id="password"
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full border border-black/10 dark:border-line bg-white/70 dark:bg-soft rounded-2xl px-4 py-2.5 pr-12 text-sm text-[#1b4332] dark:text-ink focus:outline-none focus:ring-2 focus:ring-[#40916c]"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((visible) => !visible)}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  aria-pressed={showPassword}
+                  className="absolute inset-y-0 right-1 flex w-11 items-center justify-center rounded-xl text-[#6a7282] hover:text-[#1b4332] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#40916c] dark:text-muted dark:hover:text-ink"
+                >
+                  {showPassword ? <EyeOff aria-hidden="true" className="h-5 w-5" /> : <Eye aria-hidden="true" className="h-5 w-5" />}
+                </button>
+              </div>
+              {/* Strength indicator */}
+              <div className="mt-2 space-y-1">
+                <div className="h-1.5 w-full bg-gray-200 dark:bg-line rounded-full overflow-hidden">
+                  <div className={`h-full ${strength.colorClass} ${strength.width} transition-all duration-300`} />
+                </div>
+                <p className="text-xs text-gray-500 dark:text-muted font-bold">{strength.label}</p>
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="btn border-[#2d6a4f] bg-[#2d6a4f] text-white font-semibold text-sm px-8 py-3 rounded-full shadow-sm hover:bg-[#1b4332] transition-colors w-full cursor-pointer disabled:opacity-50"
+            >
+              {loading ? 'Creating Account...' : 'Create Account'}
+            </button>
+          </form>}
+
+          <p className="text-center text-sm font-bold text-[#6a7282] dark:text-muted mt-4">
+            Already have an account?{' '}
+            <Link href="/signin" className="text-[#2d6a4f] dark:text-[#74c69d] hover:underline font-extrabold">
+              Sign in
+            </Link>
+          </p>
+          <Link
+            href="/"
+            className="mt-3 flex min-h-10 w-full items-center justify-center rounded-full border border-black/15 bg-white/70 px-5 py-2.5 text-sm font-semibold text-[#1b4332] transition-colors hover:bg-white dark:border-line dark:bg-soft dark:text-ink dark:hover:bg-panel"
+          >
+            Continue as guest
+          </Link>
+        </div>
+      </div>
+    </main>
+  );
+}

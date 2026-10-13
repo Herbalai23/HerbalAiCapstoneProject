@@ -5,7 +5,7 @@ import ts from '../herbalaifrontend/node_modules/typescript/lib/typescript.js';
 import { createServer } from 'node:http';
 import { once } from 'node:events';
 
-const source = await readFile(new URL('../herbalaifrontend/lib/dr-ai-stream.ts', import.meta.url), 'utf8');
+const source = await readFile(new URL('../herbalaifrontend/src/features/chat/dr-ai-stream.ts', import.meta.url), 'utf8');
 const compiled = ts.transpileModule(source, {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true },
 }).outputText;
@@ -266,7 +266,7 @@ test('native fetch aborts a real loopback stalled response and closes a done-but
   }
 });
 
-const pageSource = await readFile(new URL('../herbalaifrontend/app/chat/page.tsx', import.meta.url), 'utf8');
+const pageSource = await readFile(new URL('../herbalaifrontend/src/features/chat/ChatScreen.tsx', import.meta.url), 'utf8');
 const pageSyntax = ts.createSourceFile('chat.tsx', pageSource, ts.ScriptTarget.ES2022, true, ts.ScriptKind.TSX);
 let sendSource;
 let lifecycleSource;
@@ -430,7 +430,7 @@ const authRedirectCompiled = ts.transpileModule(`const redirect = ${authRedirect
   compilerOptions: { target: ts.ScriptTarget.ES2022 },
 }).outputText;
 const authRedirectHelpers = {};
-const authRedirectHelperSource = await readFile(new URL('../herbalaifrontend/lib/auth-redirect.ts', import.meta.url), 'utf8');
+const authRedirectHelperSource = await readFile(new URL('../herbalaifrontend/src/lib/auth-redirect.ts', import.meta.url), 'utf8');
 new Function('exports', ts.transpileModule(authRedirectHelperSource, {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
 }).outputText)(authRedirectHelpers);
