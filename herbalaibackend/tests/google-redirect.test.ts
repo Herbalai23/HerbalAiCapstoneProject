@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Request, Response } from 'express';
 import { safeAuthCallback } from '../src/utils/auth-redirect.js';
-import { safeAuthCallback as frontendCallback } from '../../herbalaifrontend/lib/auth-redirect';
+import { safeAuthCallback as frontendCallback } from '../../herbalaifrontend/src/lib/auth-redirect';
 
 vi.mock('../src/config/env.js', () => ({ ENV: { NODE_ENV: 'test', FRONTEND_URL: 'https://frontend.example' } }));
 vi.mock('../src/repositories/user.repository.js', () => ({}));

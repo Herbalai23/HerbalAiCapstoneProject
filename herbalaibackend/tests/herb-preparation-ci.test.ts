@@ -18,8 +18,12 @@ describe('preparation-only PostgreSQL CI gate', () => {
     expect(workflow).not.toMatch(/secrets\.|environment:|deploy:bootstrap|herbs:publish|embed:herbs|prisma db push/);
   });
 
-  it('runs on the reviewed CI branch and relevant pull requests', () => {
-    expect(workflow).toContain('branches: ["codex/mvp-acceptance-ci"]');
+  it('runs on the reviewed CI and preview branches and relevant pull requests', () => {
+    const pushBranches = workflow.match(/^ {2}push:\n {4}branches: (\[[^\n]+\])/m)?.[1];
+    expect(JSON.parse(pushBranches ?? '[]')).toEqual([
+      'codex/mvp-acceptance-ci',
+      'codex/architecture-refactor-preview-20261013',
+    ]);
     expect(workflow).toContain('branches: ["main", "master", "develop"]');
     expect(workflow).toContain('"herbalaibackend/**"');
     expect(workflow).toContain('".github/workflows/herb-preparation-ci.yml"');
