@@ -74,7 +74,7 @@ it('exits the actual backend cleanly when its port is occupied', async () => {
     const result = await new Promise<{ code: number | null; output: string }>((resolve, reject) => {
       const child = spawn(process.execPath, ['--import', 'tsx', 'src/index.ts'], {
         cwd: fileURLToPath(new URL('../', import.meta.url)),
-        env: { ...process.env, NODE_ENV: 'test', PORT: String(address.port), DB_POOL_MIN: '0', DB_POOL_METRICS_INTERVAL_MS: '0', DATABASE_URL: 'postgresql://fixture:fixture@127.0.0.1:1/unused?sslmode=disable' },
+        env: { ...process.env, NODE_ENV: 'test', PORT: String(address.port), DB_POOL_MIN: '0', DB_POOL_WARMUP_CONNECTIONS: '0', DB_POOL_METRICS_INTERVAL_MS: '0', DATABASE_URL: 'postgresql://fixture:fixture@127.0.0.1:1/unused?sslmode=disable' },
         windowsHide: true,
       });
       let output = '';

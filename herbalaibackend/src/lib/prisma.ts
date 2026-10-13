@@ -63,7 +63,7 @@ export const getDatabasePoolMetrics = (): PoolMetrics => ({
 });
 
 export const warmDatabasePool = async (): Promise<void> => {
-  const connectionCount = Math.min(ENV.DB_POOL_MIN, ENV.DB_POOL_MAX);
+  const connectionCount = Math.min(ENV.DB_POOL_WARMUP_CONNECTIONS, ENV.DB_POOL_MAX);
   if (connectionCount === 0) return;
   const connections = await Promise.allSettled(Array.from({ length: connectionCount }, () => databasePool.connect()));
   for (const connection of connections) {
