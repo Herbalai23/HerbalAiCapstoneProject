@@ -1,4 +1,4 @@
-import { rateLimit } from 'express-rate-limit';
+import rateLimit from 'express-rate-limit';
 import { ENV } from '../config/env.js';
 import { BoundedRateLimitStore } from '../lib/bounded-rate-limit-store.js';
 

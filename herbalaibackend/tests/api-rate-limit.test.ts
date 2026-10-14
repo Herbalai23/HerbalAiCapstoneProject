@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import express from 'express';
+import type { NextFunction, Request, Response } from 'express';
 import request from 'supertest';
 import { createApiRateLimiter } from '../src/middlewares/api-rate-limit.middleware.js';
 
@@ -75,5 +76,20 @@ describe('general API request budget', () => {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(Date.now() + 1_001);
     await request(app).get('/api/herbs').set('X-Forwarded-For', '192.0.2.6').expect(200);
+  });
+
+  it('supports existing workflow fixtures that expose only the default library export', async () => {
+    const compatibleFactory = vi.fn(() => (_req: Request, _res: Response, next: NextFunction) => { next(); });
+    vi.doMock('express-rate-limit', () => ({ default: compatibleFactory }));
+    try {
+      vi.resetModules();
+      const { createApiRateLimiter: freshFactory } = await import('../src/middlewares/api-rate-limit.middleware.js');
+      freshFactory({ windowMs: 1_000, limit: 2, maxKeys: 10 });
+      expect(compatibleFactory).toHaveBeenCalledTimes(1);
+      expect(compatibleFactory).toHaveBeenCalledWith(expect.objectContaining({ limit: 2, identifier: 'api' }));
+    } finally {
+      vi.doUnmock('express-rate-limit');
+      vi.resetModules();
+    }
   });
 });
