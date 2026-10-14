@@ -84,21 +84,7 @@ cd herbalaibackend
 npm install
 ```
 
-Configure `herbalaibackend/.env`:
-```env
-PORT=5000
-NODE_ENV=development
-DATABASE_URL="postgresql://user:password@localhost:5432/herbalai?sslmode=disable"
-JWT_SECRET="your-super-secret-jwt-key"
-JWT_REFRESH_SECRET="your-super-secret-refresh-key"
-FRONTEND_URL="http://localhost:3000"
-GEMINI_API_KEY="your-gemini-api-key"
-DR_AI_CHAT_MODELS="gemini-3.6-flash,gemini-3.1-flash-lite,gemini-3.8-flash,gemini-3.7-flash"
-DR_AI_MODEL_TIMEOUT_MS=7000
-DR_AI_MAX_OUTPUT_TOKENS=4096
-DR_AI_MAX_MODEL_ATTEMPTS=4
-DR_AI_MODEL_COOLDOWN_MS=60000
-```
+Create a private, Git-ignored `herbalaibackend/.env` and configure its variable names using [Private environment configuration](Docs/ENVIRONMENT_CONFIGURATION.md). Obtain actual provider/database values privately and generate separate random JWT signing keys. No environment template or reusable credential is included in Git.
 
 `DR_AI_MAX_OUTPUT_TOKENS` defaults to 4096 and is clamped to 2048–8192. Thinking models use generation headroom for both reasoning and visible answers, so a short visible reply can still reach the output limit. The larger default does not relax source-grounding, safety, completion validation, credit refunds or request deadlines. Generation logs record only bounded token counts and normalized terminal reasons, not prompts, answers, thoughts or credentials. Increase allowance only after checking provider usage and latency; a successful model response does not establish medical accuracy.
 
@@ -216,7 +202,7 @@ cd herbalaifrontend && npx tsc --noEmit
 - API responses expose `Server-Timing` and `X-Response-Time`; slow requests are logged as structured JSON.
 - Dr. Ai reports separate embedding, retrieval, and generation timings without logging question content.
 
-Optional tuning values are documented in `.env.example`: `HERB_CACHE_TTL_MS`, `AUTH_USER_CACHE_TTL_MS`, `AUTH_USER_CACHE_MAX_ENTRIES`, `SLOW_REQUEST_THRESHOLD_MS`, `DR_AI_MAX_COSINE_DISTANCE`, and the bounded `DB_POOL_*` connection-pool settings. Slow-request logs include a pool snapshot (`total`, `idle`, and `waiting`) to identify database saturation. The authentication-user cache is intentionally short-lived and is invalidated immediately by application-managed ban, verification, and password changes.
+Optional tuning variable names are documented in `Docs/ENVIRONMENT_CONFIGURATION.md`; their current defaults are defined in `herbalaibackend/src/config/env.ts`. Slow-request logs include a pool snapshot (`total`, `idle`, and `waiting`) to identify database saturation. The authentication-user cache is intentionally short-lived and is invalidated immediately by application-managed ban, verification, and password changes.
 
 Email safety is controlled by `EMAIL_DELIVERY_MODE`: use `log` for local development, `allowlist` plus `EMAIL_ALLOWED_RECIPIENTS` for controlled mailbox testing, and `live` only for production. Development defaults to `log` when the variable is omitted.
 On Railway Free, Trial, or Hobby, SMTP is blocked. Use an HTTPS mail provider: either `EMAIL_PROVIDER=resend` with a verified sender domain, or `EMAIL_PROVIDER=gmail` with a dedicated Gmail API OAuth client and refresh token for an existing Gmail sender. See `Docs/RAILWAY_VERCEL_DEPLOYMENT.md`. Failed verification delivery leaves a recoverable unverified account, so use the resend-verification action rather than signing up again.

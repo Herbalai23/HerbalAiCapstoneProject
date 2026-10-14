@@ -4,6 +4,10 @@ npm-debug.log
 .env
 .env.local
 .env.*
-!.env.example
+*.private.json
+*.pem
+*.key
+credentials.json
+service-account*.json
 .git
 .gitignore

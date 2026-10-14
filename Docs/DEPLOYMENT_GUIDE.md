@@ -39,26 +39,16 @@ chmod +x scripts/*.sh
 ## 3. Environment Configuration
 
 ### Configure Docker Compose Environment
-Copy the root environment template and replace every placeholder with a production value. Do not use predictable JWT secrets or commit the resulting `.env` file.
+Create a private root environment file using the variable names in `ENVIRONMENT_CONFIGURATION.md` and `docker-compose.yml`. There is no tracked environment template. Do not use predictable JWT secrets or commit the resulting `.env` file.
 
 ```bash
-cp .env.example .env
+umask 077
+touch .env
 chmod 600 .env
 ```
 
 ### Configure Backend Environment
-Create and edit `/root/herbal-ai/herbalaibackend/.env`:
-```env
-PORT=5000
-NODE_ENV=production
-DATABASE_URL="postgresql://herbalai_user:herbalai_secure_pass@postgres:5432/herbalai_db?sslmode=disable"
-JWT_SECRET="your-production-secret-jwt-key"
-JWT_REFRESH_SECRET="your-production-secret-refresh-key"
-FRONTEND_URL="https://herbalai.ph"
-GEMINI_API_KEY="your-google-gemini-api-key"
-ADMIN_EMAIL="admin@herbalai.ph"
-ADMIN_PASSWORD="generate-a-unique-random-password-of-at-least-12-characters"
-```
+Configure backend values privately using `ENVIRONMENT_CONFIGURATION.md`. Set `NODE_ENV=production`, the real `DATABASE_URL`, two separate random JWT signing keys, application origins and the required provider settings. Docker Compose reads these from the private root `.env`; local non-Docker development uses `herbalaibackend/.env`. Do not use documentation examples as reusable credentials.
 
 ### Configure Frontend Environment
 For Docker Compose, set these values in the **root `.env`** (not the frontend `.env.local`, which is excluded from the Docker build):

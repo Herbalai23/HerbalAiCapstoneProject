@@ -62,7 +62,7 @@ For a one-time sender authorization, create a Web OAuth client in the mail-only 
 
 For a temporary demonstration, set `REQUIRE_EMAIL_VERIFICATION=false` in Railway and deploy matching backend and frontend revisions. Signup then skips verification-mail delivery and allows password login while leaving `emailVerified` unset. This does not prove that users own their email addresses; someone can register using another person's address. Password recovery works only when an email provider is configured and delivering mail. After deploying the `email_verification_required` database migration and matching backend code, existing accounts retain password login when `REQUIRE_EMAIL_VERIFICATION=true`; only accounts created with verification required must verify before login. Deploy the migration and code before changing the Railway variable, and confirm email delivery before enabling it.
 
-Also add the optional Google and Cloudinary variables from `.env.example` when those integrations are enabled.
+Also add the optional Google and Cloudinary variable names listed in `ENVIRONMENT_CONFIGURATION.md` when those integrations are enabled. Obtain their values privately; environment templates are not committed.
 
 After the first successful migration, run this command **once** in the Railway backend service against the chosen database:
 

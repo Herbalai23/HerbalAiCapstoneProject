@@ -60,7 +60,7 @@ test('public browser URLs are passed to the builder before Next build', () => {
     assert.ok(builder.indexOf(`ENV ${name}=$${name}`) < builder.indexOf('RUN npm run build'));
     assert.ok(builder.includes(`ENV ${name}=$${name}`));
     assert.match(compose, new RegExp(`args:[\\s\\S]*${name}: \\$\\{${name}:\\?`));
-    assert.ok(read('.env.example').includes(`${name}=`));
+    assert.ok(read('Docs/ENVIRONMENT_CONFIGURATION.md').includes(`\`${name}\``));
   }
 });
 

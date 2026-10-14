@@ -41,6 +41,9 @@ jobs:
         working-directory: herbalaibackend
         run: npm ci
 
+      - name: Reject committed credentials and environment files
+        run: node scripts/repository-security.mjs
+
       - name: Run offline herb research generator regressions
         run: python3 -B -m unittest discover -s scripts -p test_herb_research_queue.py -v
 
@@ -142,7 +145,7 @@ jobs:
 
       - name: Run deployment configuration and guarded flow regressions
         working-directory: herbalaifrontend
-        run: node --test ../scripts/deployment-config.test.mjs ../scripts/deployment-flow.test.mjs
+        run: node --test ../scripts/deployment-config.test.mjs ../scripts/deployment-flow.test.mjs ../scripts/repository-security.test.mjs
 
       - name: Run Messenger recovery regressions
         working-directory: herbalaifrontend

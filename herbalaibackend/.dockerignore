@@ -1,7 +1,12 @@
 node_modules
 npm-debug.log
 .env
-.env.local
+.env.*
+*.private.json
+*.pem
+*.key
+credentials.json
+service-account*.json
 .git
 .gitignore
 tests

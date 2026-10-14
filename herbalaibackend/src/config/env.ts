@@ -2,6 +2,7 @@ import dotenv from 'dotenv';
 import process from 'node:process';
 import { normalizeDatabaseUrl } from './database-url.js';
 import { parseAdditionalFrontendOrigins } from './frontend-origins.js';
+import { resolveJwtSecrets } from './jwt-secrets.js';
 dotenv.config();
 
 const boundedInteger = (name: string, fallback: number, minimum: number, maximum: number) => {
@@ -24,8 +25,7 @@ export const ENV = {
   DB_POOL_METRICS_INTERVAL_MS: boundedInteger('DB_POOL_METRICS_INTERVAL_MS', 60_000, 0, 3_600_000),
   AUTH_USER_CACHE_TTL_MS: boundedInteger('AUTH_USER_CACHE_TTL_MS', 5_000, 0, 60_000),
   AUTH_USER_CACHE_MAX_ENTRIES: boundedInteger('AUTH_USER_CACHE_MAX_ENTRIES', 2_000, 1, 100_000),
-  JWT_SECRET: process.env['JWT_SECRET'] || 'herbalai_access_secret_change_in_prod',
-  JWT_REFRESH_SECRET: process.env['JWT_REFRESH_SECRET'] || 'herbalai_refresh_secret_change_in_prod',
+  ...resolveJwtSecrets(process.env),
   FRONTEND_URL: process.env['FRONTEND_URL'] || 'http://localhost:3000',
   FRONTEND_ADDITIONAL_ORIGINS: parseAdditionalFrontendOrigins(process.env['FRONTEND_ADDITIONAL_ORIGINS']),
   BACKEND_URL: process.env['BACKEND_URL'] || 'http://localhost:5000',
@@ -65,15 +65,3 @@ export const ENV = {
     .map((email) => email.trim().toLowerCase())
     .filter(Boolean),
 };
-
-if (ENV.NODE_ENV === 'production') {
-  const jwtSecrets: Array<[name: string, value: string, fallback: string]> = [
-    ['JWT_SECRET', ENV.JWT_SECRET, 'herbalai_access_secret_change_in_prod'],
-    ['JWT_REFRESH_SECRET', ENV.JWT_REFRESH_SECRET, 'herbalai_refresh_secret_change_in_prod'],
-  ];
-  const invalidSecrets = jwtSecrets.filter(([, value, fallback]) => value === fallback || value.length < 32);
-
-  if (invalidSecrets.length > 0) {
-    throw new Error(`Production requires unique JWT secrets of at least 32 characters: ${invalidSecrets.map(([name]) => name).join(', ')}`);
-  }
-}

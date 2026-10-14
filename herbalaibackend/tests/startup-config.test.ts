@@ -24,15 +24,15 @@ describe('database TLS compatibility', () => {
   });
 });
 
-it('fails closed when production JWT secrets use predictable defaults', async () => {
+it('fails closed when production JWT secrets are missing', async () => {
   const result = await new Promise<{ code: number | null; output: string }>((resolve, reject) => {
     const child = spawn(process.execPath, ['--import', 'tsx', '--eval', "import('./src/config/env.ts')"], {
       cwd: fileURLToPath(new URL('../', import.meta.url)),
       env: {
         ...process.env,
         NODE_ENV: 'production',
-        JWT_SECRET: 'herbalai_access_secret_change_in_prod',
-        JWT_REFRESH_SECRET: 'herbalai_refresh_secret_change_in_prod',
+        JWT_SECRET: '',
+        JWT_REFRESH_SECRET: '',
       },
       windowsHide: true,
     });
