@@ -44,6 +44,10 @@ Test-credit configuration uses `DR_AI_CREDITS_MODE`, `DR_AI_TRIAL_CREDITS`, `DR_
 
 Isolated CI uses synthetic credentials for an ephemeral loopback database. Synthetic fixture values and public taxonomy/citation identifiers are not production credentials and must not be reused as such.
 
+## API abuse limits
+
+`API_RATE_LIMIT_MAX` defaults to 600 API requests per client IP/subnet per window, bounded to 60–6,000. `API_RATE_LIMIT_WINDOW_MS` defaults to 60,000 ms, bounded to 1,000–300,000. `API_RATE_LIMIT_MAX_KEYS` bounds the process-local counter capacity, default 10,000 and range 100–50,000. No provider credentials or database connection are needed for these counters. Existing authentication/AI/payment limits remain separate and may be stricter. See `API_ABUSE_PROTECTION.md` before tuning these values, especially for a shared campus network.
+
 ## Repository checks
 
 Run `node scripts/repository-security.mjs` before committing to reject tracked environment files, private-key files and recognizable provider credentials without printing secret values. Provider-pattern checks cannot prove that every possible secret has been detected; investigate any exposed credential and rotate it at its provider. Removing a file from the current tree does not erase its Git history. Coordinate history rewrites separately and never force-push production branches as routine cleanup.

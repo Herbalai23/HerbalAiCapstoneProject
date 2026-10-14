@@ -12,6 +12,7 @@ import { getDatabasePoolMetrics } from './lib/prisma.js';
 import { testCreditsWebhook } from './controllers/credits-webhook.controller.js';
 import { getCreditsConfig } from './config/credits.js';
 import rateLimit from 'express-rate-limit';
+import { createApiRateLimiter } from './middlewares/api-rate-limit.middleware.js';
 
 const app = express();
 
@@ -43,6 +44,7 @@ app.use(cors({
 }));
 
 app.post('/api/credits/webhook', rateLimit({ windowMs: 60000, max: 120, standardHeaders: true, legacyHeaders: false }), express.raw({ type: 'application/json', limit: '64kb' }), testCreditsWebhook);
+app.use('/api', createApiRateLimiter());
 app.use('/api', requestOriginGuard);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
